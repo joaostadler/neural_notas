@@ -27,6 +27,7 @@ class Usuario(UserMixin, db.Model):
     topicos = db.relationship('Topico', backref='usuario', lazy=True, cascade='all, delete-orphan')
     colunas_kanban = db.relationship('ColunaKanban', backref='usuario', lazy=True, cascade='all, delete-orphan')
     tarefas_faceis = db.relationship('TarefaFacil', backref='usuario', lazy=True, cascade='all, delete-orphan')
+    icones_customizados = db.relationship('IconeCustomizado', backref='usuario', lazy=True, cascade='all, delete-orphan')
 
     def definir_senha(self, senha: str) -> None:
         """Define e faz hash da senha."""
@@ -212,6 +213,23 @@ class CelulaJupyter(db.Model):
         return f'<CelulaJupyter tipo={self.tipo}>'
 
 
+class IconeCustomizado(db.Model):
+    """Ícones customizados por tipo de tópico, por usuário."""
+    __tablename__ = 'icones_customizados'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    tipo = db.Column(db.String(50), nullable=False)
+    caminho = db.Column(db.String(500), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('id_usuario', 'tipo', name='uq_icone_usuario_tipo'),
+    )
+
+    def __repr__(self):
+        return f'<IconeCustomizado {self.tipo}>'
+
+
 class PDF(db.Model):
     """Modelo de PDFs."""
     __tablename__ = 'pdfs'
@@ -220,6 +238,7 @@ class PDF(db.Model):
     id_topico = db.Column(db.Integer, db.ForeignKey('topicos.id', ondelete='CASCADE'), nullable=False, unique=True)
     titulo = db.Column(db.String(255), default='')
     caminho = db.Column(db.String(500), default='')
+    capa = db.Column(db.String(500), default='')
     percentual_lido = db.Column(db.Integer, default=0)
     anotacoes = db.Column(db.Text, default='')
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
