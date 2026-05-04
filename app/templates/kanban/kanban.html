@@ -72,6 +72,7 @@
                      data-etiquetas="{{ cartao.etiquetas|e }}"
                      data-prioridade="{{ cartao.prioridade }}"
                      data-criado="{{ cartao.criado_em.strftime('%Y-%m-%d') }}"
+                     data-obs-conclusao="{{ (cartao.observacoes_conclusao or '')|e }}"
                      ondragstart="onDragStart(event)"
                      ondragend="onDragEnd(event)">
 
@@ -102,6 +103,11 @@
                             <span class="kb-date-item kb-date-conclusao">✓ Concluído: {{ conclusoes[cartao.id].strftime('%d/%m/%Y') }}</span>
                             {% endif %}
                         </div>
+                        {% if col.id == ultima_coluna_id and cartao.observacoes_conclusao %}
+                        <div class="kb-obs-conclusao">
+                            <span class="kb-obs-label">Obs.:</span> {{ cartao.observacoes_conclusao }}
+                        </div>
+                        {% endif %}
                     </div>
 
                     <div class="kb-card-actions">
@@ -147,6 +153,26 @@
         <div class="kb-modal-actions">
             <button class="btn btn-secondary btn-sm" onclick="fecharModalColuna()">Cancelar</button>
             <button class="btn btn-primary btn-sm" id="btnSalvarColuna" onclick="salvarColuna()">Criar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Observações da Conclusão -->
+<div id="modalConclusao" class="kb-modal-backdrop" hidden>
+    <div class="kb-modal kb-modal--wide">
+        <p class="kb-modal-eyebrow">Concluindo cartão</p>
+        <h3 class="kb-modal-title">Observações da Conclusão</h3>
+        <div class="form-group">
+            <label>Observações <span style="color:#ef4444">*</span></label>
+            <textarea id="inputObsConclusao" rows="5"
+                placeholder="Descreva como foi a conclusão, resultados obtidos, pendências, etc."
+                style="width:100%;resize:vertical;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s"
+                oninput="this.style.borderColor=this.value.trim()?'#e2e8f0':'#ef4444'"></textarea>
+            <p id="obsErrorMsg" style="color:#ef4444;font-size:12px;margin-top:4px;display:none">Campo obrigatório.</p>
+        </div>
+        <div class="kb-modal-actions">
+            <button class="btn btn-secondary btn-sm" onclick="cancelarConclusao()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="confirmarConclusao()" style="background:#16a34a;border-color:#16a34a">✓ Confirmar conclusão</button>
         </div>
     </div>
 </div>
@@ -322,6 +348,23 @@
 .kb-date-conclusao {
     color: #16a34a;
     font-weight: 600;
+}
+
+.kb-obs-conclusao {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #475569;
+    background: #f0fdf4;
+    border-left: 3px solid #16a34a;
+    padding: 4px 8px;
+    border-radius: 0 4px 4px 0;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.kb-obs-label {
+    font-weight: 600;
+    color: #16a34a;
 }
 
 /* ── Board ─────────────────────────────────────────────────────────── */
@@ -876,6 +919,9 @@ function apiFetch(url, method, body) {
 let dragCard = null;
 let indicatorEl = null;
 
+/* Estado salvo para poder reverter o drop se o modal for cancelado */
+let _conclusaoPendente = null;
+
 window.onDragStart = function(e) {
     dragCard = e.currentTarget;
     dragCard.classList.add('dragging');
@@ -918,6 +964,10 @@ window.onDrop = function(e) {
     const afterEl = getDragAfterElement(zone, e.clientY);
     removeIndicator();
 
+    /* Salvar posição original para poder reverter */
+    const zoneOriginal = dragCard.parentElement;
+    const nextSiblingOriginal = dragCard.nextElementSibling;
+
     if (afterEl) zone.insertBefore(dragCard, afterEl);
     else zone.appendChild(dragCard);
 
@@ -928,30 +978,26 @@ window.onDrop = function(e) {
     const cards = [...zone.querySelectorAll('.kb-card')];
     const novaOrdem = cards.indexOf(dragCard) + 1;
 
-    API.moverCartao(parseInt(dragCard.dataset.id), {
-        id_coluna: novaColId,
-        ordem: novaOrdem,
-    });
-
-    /* Atualiza label de data de conclusão conforme coluna de destino */
     const ultimaColId = parseInt(document.getElementById('kanbanBoard').dataset.ultimaCol || '0');
-    const datesEl = dragCard.querySelector('.kb-card-dates');
-    if (datesEl) {
-        const conclusaoExist = datesEl.querySelector('.kb-date-conclusao');
-        if (novaColId === ultimaColId) {
-            if (!conclusaoExist) {
-                const hoje = new Date();
-                const fmt = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
-                const span = document.createElement('span');
-                span.className = 'kb-date-item kb-date-conclusao';
-                span.textContent = `✓ Concluído: ${fmt}`;
-                datesEl.appendChild(span);
-            }
-        } else {
-            conclusaoExist?.remove();
-        }
+
+    if (novaColId === ultimaColId) {
+        /* Guardar estado pendente e abrir modal de observações */
+        _conclusaoPendente = {
+            card: dragCard,
+            zone,
+            zoneOriginal,
+            nextSiblingOriginal,
+            novaColId,
+            novaOrdem,
+            ultimaColId,
+        };
+        abrirModalConclusao();
+        dragCard = null;
+        return;
     }
 
+    _finalizarMoverCartao(dragCard, novaColId, novaOrdem, ultimaColId, '');
+    dragCard = null;
     atualizarContagens();
 };
 
@@ -1340,6 +1386,93 @@ document.getElementById('btnTbTabela').addEventListener('click', () => {
     document.execCommand('insertHTML', false, html);
 });
 
+/* ═══ Modal Observações da Conclusão ══════════════════════════════════ */
+
+function abrirModalConclusao() {
+    const input = document.getElementById('inputObsConclusao');
+    input.value = '';
+    input.style.borderColor = '#e2e8f0';
+    document.getElementById('obsErrorMsg').style.display = 'none';
+    document.getElementById('modalConclusao').hidden = false;
+    setTimeout(() => input.focus(), 50);
+}
+
+function fecharModalConclusao() {
+    document.getElementById('modalConclusao').hidden = true;
+    _conclusaoPendente = null;
+}
+
+window.cancelarConclusao = function() {
+    if (_conclusaoPendente) {
+        /* Reverter card para posição original */
+        const { card, zoneOriginal, nextSiblingOriginal } = _conclusaoPendente;
+        if (nextSiblingOriginal) zoneOriginal.insertBefore(card, nextSiblingOriginal);
+        else zoneOriginal.appendChild(card);
+        card.dataset.col = zoneOriginal.dataset.colId;
+    }
+    fecharModalConclusao();
+    atualizarContagens();
+};
+
+window.confirmarConclusao = function() {
+    const obs = document.getElementById('inputObsConclusao').value.trim();
+    if (!obs) {
+        document.getElementById('inputObsConclusao').style.borderColor = '#ef4444';
+        document.getElementById('obsErrorMsg').style.display = 'block';
+        return;
+    }
+    if (!_conclusaoPendente) { fecharModalConclusao(); return; }
+
+    const { card, novaColId, novaOrdem, ultimaColId } = _conclusaoPendente;
+    fecharModalConclusao();
+    _finalizarMoverCartao(card, novaColId, novaOrdem, ultimaColId, obs);
+    atualizarContagens();
+};
+
+function _finalizarMoverCartao(card, novaColId, novaOrdem, ultimaColId, obs) {
+    API.moverCartao(parseInt(card.dataset.id), {
+        id_coluna: novaColId,
+        ordem: novaOrdem,
+        observacoes_conclusao: obs,
+    });
+
+    /* Atualiza label de data de conclusão */
+    const datesEl = card.querySelector('.kb-card-dates');
+    if (datesEl) {
+        const conclusaoExist = datesEl.querySelector('.kb-date-conclusao');
+        if (novaColId === ultimaColId) {
+            if (!conclusaoExist) {
+                const hoje = new Date();
+                const fmt = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
+                const span = document.createElement('span');
+                span.className = 'kb-date-item kb-date-conclusao';
+                span.textContent = `✓ Concluído: ${fmt}`;
+                datesEl.appendChild(span);
+            }
+        } else {
+            conclusaoExist?.remove();
+        }
+    }
+
+    /* Atualiza ou remove bloco de observações */
+    const cardBody = card.querySelector('.kb-card-body');
+    const obsExist = card.querySelector('.kb-obs-conclusao');
+    if (novaColId === ultimaColId && obs) {
+        if (obsExist) {
+            obsExist.innerHTML = `<span class="kb-obs-label">Obs.:</span> ${esc(obs)}`;
+        } else {
+            const div = document.createElement('div');
+            div.className = 'kb-obs-conclusao';
+            div.innerHTML = `<span class="kb-obs-label">Obs.:</span> ${esc(obs)}`;
+            cardBody.appendChild(div);
+        }
+        card.dataset.obsConclusao = obs;
+    } else {
+        obsExist?.remove();
+        card.dataset.obsConclusao = '';
+    }
+}
+
 /* ═══ Fechar modais ao clicar fora ════════════════════════════════════ */
 
 document.getElementById('modalColuna').addEventListener('click', function(e) {
@@ -1348,9 +1481,16 @@ document.getElementById('modalColuna').addEventListener('click', function(e) {
 document.getElementById('modalCartao').addEventListener('click', function(e) {
     if (e.target === this) fecharModalCartao();
 });
+document.getElementById('modalConclusao').addEventListener('click', function(e) {
+    if (e.target === this) cancelarConclusao();
+});
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { fecharModalColuna(); fecharModalCartao(); }
+    if (e.key === 'Escape') {
+        fecharModalColuna();
+        fecharModalCartao();
+        if (!document.getElementById('modalConclusao').hidden) cancelarConclusao();
+    }
 });
 
 /* ═══ Utilitário ═══════════════════════════════════════════════════════ */

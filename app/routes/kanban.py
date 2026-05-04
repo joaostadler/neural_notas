@@ -232,13 +232,29 @@ def mover_cartao(id):
     dados = request.get_json(silent=True) or {}
     nova_coluna_id = dados.get('id_coluna')
     nova_ordem = dados.get('ordem', 0)
+    observacoes_conclusao = dados.get('observacoes_conclusao', '').strip()
 
     if not nova_coluna_id or not _coluna_do_usuario(nova_coluna_id):
         return jsonify({'erro': 'Coluna inválida'}), 400
 
+    colunas = (
+        ColunaKanban.query.filter_by(id_usuario=current_user.id)
+        .order_by(ColunaKanban.ordem)
+        .all()
+    )
+    ultima_coluna_id = colunas[-1].id if colunas else None
+
+    if nova_coluna_id == ultima_coluna_id and not observacoes_conclusao:
+        return jsonify({'erro': 'Observações da conclusão são obrigatórias'}), 400
+
     coluna_antiga = cartao.id_coluna
     cartao.id_coluna = nova_coluna_id
     cartao.ordem = nova_ordem
+
+    if nova_coluna_id == ultima_coluna_id:
+        cartao.observacoes_conclusao = observacoes_conclusao
+    elif coluna_antiga == ultima_coluna_id:
+        cartao.observacoes_conclusao = ''
 
     if coluna_antiga != nova_coluna_id:
         nova_coluna = _coluna_do_usuario(nova_coluna_id)
