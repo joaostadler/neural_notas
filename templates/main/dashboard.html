@@ -1,0 +1,1370 @@
+{% extends "base.html" %}
+
+{% block title %}Workspace - NeuralNotes{% endblock %}
+
+{# Cores por tipo de documento (tema claro) #}
+{% set TIPO_COR = {
+    'nota':     '#2563eb',
+    'caderno':  '#7c3aed',
+    'pdf':      '#ef4444',
+    'planilha': '#16a34a',
+    'diagrama': '#0891b2',
+    'jupyter':  '#d97706',
+    'tarefa':   '#16a34a',
+    'imagem':   '#7c3aed',
+    'python':    '#3776ab',
+    'sql':       '#e38c00',
+    'biblioteca':'#7c3aed',
+} %}
+
+{% macro icone_topico(topico) %}
+                      {% if topico.tipo in ('pasta', 'biblioteca') %}
+        <img src="{{ url_for('static', filename='icons/pasta.png') }}"
+             class="t-icon-pasta" alt="pasta">
+    {% elif topico.tipo == 'python' %}
+        <span class="code-badge t-icon-code t-icon-py">PY</span>
+    {% elif topico.tipo == 'sql' %}
+        <span class="code-badge t-icon-code t-icon-sql">SQL</span>
+    {% else %}
+        <span class="t-icon-file"
+              style="--tc: {{ TIPO_COR.get(topico.tipo, '#94a3b8') }}"></span>
+    {% endif %}
+{% endmacro %}
+
+{% macro arvore_topicos(lista) %}
+    <ul class="topic-tree">
+        {% for topico in lista|sort(attribute='ordem') %}
+            <li class="topic-node">
+                <div class="topic-row"
+                     tabindex="0"
+                     draggable="true"
+                      data-id="{{ topico.id }}"
+                      data-nome="{{ topico.nome }}"
+                      data-tipo="{{ topico.tipo }}"
+                      ondragstart="sbDragStart(event)"
+                     ondragend="sbDragEnd(event)"
+                      {% if topico.tipo in ('pasta', 'biblioteca') %}
+                     ondragover="sbDragOver(event)"
+                     ondrop="sbDrop(event)"
+                     {% endif %}>
+                    {{ icone_topico(topico) }}
+                    <span class="topic-name">{{ topico.nome }}</span>
+                    {% if topico.subtopicos %}
+                        <span class="topic-chevron">›</span>
+                    {% endif %}
+                </div>
+                {% if topico.subtopicos %}
+                    {{ arvore_topicos(topico.subtopicos) }}
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
+{% block content %}
+<div class="workspace-shell">
+
+    <!-- ── Sidebar ─────────────────────────────── -->
+    <aside class="workspace-sidebar" id="sidebar"
+           data-create-url="{{ url_for('main.criar_topico') }}"
+           data-pdf-url="{{ url_for('main.importar_pdf') }}">
+
+        <div class="sidebar-cab">
+            <span class="sidebar-cab-label">Biblioteca</span>
+            <div class="sidebar-cab-actions">
+                <button class="sidebar-tree-btn" id="btnPainel" title="Painel de resumo">📊</button>
+                <button class="sidebar-tree-btn" id="btnExpandirTudo" title="Expandir tudo">⊞</button>
+                <button class="sidebar-tree-btn" id="btnReduzirTudo"  title="Recolher tudo">⊟</button>
+            </div>
+        </div>
+        <div class="sidebar-hr"></div>
+
+        <div id="rootDropZone" class="root-drop-zone">
+            ↖ Soltar aqui para mover para a raiz
+        </div>
+
+        <div class="tree-panel" id="treePanel">
+            {% if topicos %}
+                {{ arvore_topicos(topicos) }}
+            {% else %}
+                <div class="tree-empty">
+                    <p>Nenhum item ainda.</p>
+                    <p>Clique com o botão direito para criar.</p>
+                </div>
+            {% endif %}
+        </div>
+
+    </aside>
+
+    <!-- ── Conteúdo ─────────────────────────────── -->
+    <main class="workspace-main" id="workspaceMain">
+
+        <!-- Estado inicial (boas-vindas) -->
+        <div id="welcomeState">
+            <section class="ws-hero">
+                <p class="eyebrow">Workspace</p>
+                <h2>Bem-vindo, {{ current_user.nome }}</h2>
+                <p>Clique com o botão direito na área lateral para criar itens. Clique em um item para abri-lo.</p>
+            </section>
+            {% if tarefas_recentes %}
+            <section class="ws-recent">
+                <h3>Tarefas recentes</h3>
+                <div class="recent-list">
+                    {% for tarefa in tarefas_recentes %}
+                        <article class="recent-item">
+                            <strong>{{ tarefa.descricao }}</strong>
+                            <span>{{ tarefa.data_tarefa }}{% if tarefa.solicitante %} · {{ tarefa.solicitante }}{% endif %}</span>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- Barra de abas -->
+        <div id="tabBar" class="tab-bar" style="display:none">
+            <button id="btnVoltar" class="tab-back" title="Voltar" disabled>←</button>
+            <div id="tabPills" class="tab-pills"></div>
+        </div>
+        <!-- Panes das abas (preenchidos via AJAX) -->
+        <div id="tabContents" class="tab-contents" style="display:none"></div>
+
+    </main>
+</div>
+
+<!-- ── Menu de contexto ───────────────────────── -->
+<div id="ctxMenu" class="ctx-menu" hidden>
+    <div class="ctx-header" id="ctxHeader">Na raiz</div>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" data-tipo="pasta">
+        <img src="{{ url_for('static', filename='icons/pasta.png') }}" class="ctx-icon-pasta" alt="">
+        Pasta
+    </button>
+    <button class="ctx-item" data-tipo="nota">
+        <span class="ctx-icon-file" style="--tc:#2563eb"></span>Nota
+    </button>
+    <button class="ctx-item" data-tipo="caderno">
+        <span class="ctx-icon-file" style="--tc:#7c3aed"></span>Caderno
+    </button>
+    <button class="ctx-item" data-tipo="planilha">
+        <span class="ctx-icon-file" style="--tc:#16a34a"></span>Planilha
+    </button>
+    <button class="ctx-item" data-tipo="diagrama">
+        <span class="ctx-icon-file" style="--tc:#0891b2"></span>Diagrama
+    </button>
+    <button class="ctx-item" data-tipo="jupyter">
+        <span class="ctx-icon-file" style="--tc:#d97706"></span>Notebook
+    </button>
+    <button class="ctx-item" data-tipo="tarefa">
+        <span class="ctx-icon-file" style="--tc:#16a34a"></span>Tarefa
+    </button>
+    <button class="ctx-item" data-tipo="imagem">
+        <span class="ctx-icon-file" style="--tc:#7c3aed"></span>Imagem
+    </button>
+    <button class="ctx-item" data-tipo="biblioteca">
+        <span class="ctx-icon-file" style="--tc:#7c3aed"></span>Biblioteca
+    </button>
+    <button class="ctx-item" data-tipo="python">
+        <span class="code-badge ctx-icon-code ctx-icon-py">PY</span>Python
+    </button>
+    <button class="ctx-item" data-tipo="sql">
+        <span class="code-badge ctx-icon-code ctx-icon-sql">SQL</span>SQL
+    </button>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" data-tipo="_pdf">
+        <span class="ctx-icon-file" style="--tc:#ef4444"></span>Importar PDF…
+    </button>
+    <div class="ctx-separator" id="ctxDeleteSep" hidden></div>
+    <button class="ctx-item" id="ctxBtnRenomear" hidden>
+        <span class="ctx-icon-del">✏️</span><span id="ctxRenLabel">Renomear item</span>
+    </button>
+    <button class="ctx-item ctx-item-danger" id="ctxBtnDeletar" hidden>
+        <span class="ctx-icon-del">🗑</span><span id="ctxDelLabel">Deletar item</span>
+    </button>
+</div>
+
+<!-- Modais criados dinamicamente via JS quando necessário -->
+
+<style>
+/* ── Layout geral ───────────────────────── */
+.container {
+    max-width: none;
+    padding: 0;
+}
+
+.workspace-shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    min-height: calc(100vh - 56px);
+    background: #f6f8fb;
+}
+
+/* ── Sidebar ────────────────────────────── */
+.workspace-sidebar {
+    background: #ffffff;
+    border-right: 1px solid #dbe4ef;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+}
+
+.sidebar-cab {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px 0 14px;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.sidebar-cab-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    flex: 1;
+}
+
+.sidebar-cab-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.sidebar-tree-btn {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+}
+
+.sidebar-tree-btn:hover {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.sidebar-hr {
+    height: 1px;
+    background: #dbe4ef;
+    flex-shrink: 0;
+}
+
+/* ── Drag & drop na árvore ──────────── */
+.root-drop-zone {
+    display: none;
+    margin: 6px 8px 0;
+    padding: 7px 12px;
+    border: 2px dashed #dbe4ef;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #94a3b8;
+    text-align: center;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    cursor: default;
+    flex-shrink: 0;
+}
+
+.root-drop-zone.drag-ativo  { display: block; }
+.root-drop-zone.drag-sobre  { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+
+.topic-row[draggable="true"] {
+    cursor: grab;
+    -webkit-user-drag: element;
+}
+.topic-row[draggable="true"]:active { cursor: grabbing; }
+
+.topic-row.is-dragging { opacity: 0.35; }
+
+.topic-row.drag-alvo {
+    background: #eff6ff !important;
+    border-color: #93c5fd !important;
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+/* ── Árvore ─────────────────────────────── */
+.tree-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 4px;
+}
+
+.tree-empty {
+    padding: 20px 16px;
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.topic-tree {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.topic-tree .topic-tree {
+    border-left: 1px solid #e2e8f0;
+    margin-left: 14px;
+    padding-left: 6px;
+}
+
+.topic-node {
+    margin: 1px 0;
+}
+
+.topic-row {
+    width: 100%;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #1e293b;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    padding: 3px 8px 3px 6px;
+    text-align: left;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.topic-row:hover {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+.topic-row.is-active {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #2563eb;
+}
+
+.topic-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.topic-chevron {
+    color: #cbd5e1;
+    font-size: 15px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+/* ── Ícones da árvore ───────────────────── */
+.t-icon-pasta {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.t-icon-file {
+    width: 16px;
+    height: 19px;
+    flex-shrink: 0;
+    position: relative;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 2px 4px 2px 2px;
+}
+
+/* canto dobrado */
+.t-icon-file::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 6px;
+    height: 6px;
+    background: #e2e8f0;
+    border-left: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+    border-radius: 0 3px 0 3px;
+}
+
+/* faixa colorida na base */
+.t-icon-file::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: -1px;
+    right: -1px;
+    height: 4px;
+    background: var(--tc, #94a3b8);
+    border-radius: 0 0 2px 2px;
+}
+
+/* ── Ícones de código (PY / SQL) ────────── */
+:root { --color-py: #3776ab; --color-sql: #e38c00; }
+
+.code-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 3px; font-weight: 800; color: #fff; flex-shrink: 0;
+    font-family: 'Courier New', monospace; letter-spacing: -0.3px; line-height: 1;
+}
+.t-icon-code   { width: 24px; height: 16px; font-size: 7px; }
+.ctx-icon-code { width: 22px; height: 14px; font-size: 7px; }
+.tab-code-icon { width: 22px; height: 13px; font-size: 6.5px; padding: 0; }
+
+.t-icon-py, .ctx-icon-py  { background: var(--color-py); }
+.t-icon-sql, .ctx-icon-sql { background: var(--color-sql); }
+
+/* ── Menu de contexto ───────────────────── */
+.ctx-menu {
+    position: fixed;
+    z-index: 1000;
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    padding: 6px;
+    min-width: 190px;
+}
+
+.ctx-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 10px 2px;
+}
+
+.ctx-separator {
+    height: 1px;
+    background: #f1f5f9;
+    margin: 4px 0;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #1e293b;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+}
+
+.ctx-item:hover {
+    background: #f1f5f9;
+}
+
+.ctx-icon-pasta {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.ctx-icon-file {
+    width: 14px;
+    height: 17px;
+    flex-shrink: 0;
+    position: relative;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 2px 3px 2px 2px;
+}
+
+.ctx-icon-file::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 5px;
+    height: 5px;
+    background: #e2e8f0;
+    border-left: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+    border-radius: 0 2px 0 2px;
+}
+
+.ctx-item-danger { color: #ef4444; }
+.ctx-item-danger:hover { background: #fef2f2; }
+.ctx-icon-del { font-size: 13px; width: 14px; text-align: center; flex-shrink: 0; }
+
+.ctx-icon-file::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: -1px;
+    right: -1px;
+    height: 4px;
+    background: var(--tc, #94a3b8);
+    border-radius: 0 0 2px 2px;
+}
+
+/* ── Modal ──────────────────────────────── */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(15, 23, 42, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-box {
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    padding: 24px;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+}
+
+.modal-subtitle {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 4px;
+}
+
+.modal-title {
+    font-size: 18px;
+    color: #0f172a;
+    margin: 0 0 18px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* ── Conteúdo principal ─────────────────── */
+.workspace-main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#welcomeState {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ── Tab bar ────────────────────────────── */
+.tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 4px 8px 0;
+    border-bottom: 1px solid #dbe4ef;
+    background: #f1f5f9;
+    flex-shrink: 0;
+    min-height: 40px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-back {
+    flex-shrink: 0;
+    width: 28px;
+    height: 26px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: #64748b;
+    font-size: 15px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 6px;
+    transition: background 0.12s, color 0.12s;
+    line-height: 1;
+}
+.tab-back:hover:not(:disabled) { background: #e2e8f0; color: #1e293b; }
+.tab-back:disabled { color: #cbd5e1; cursor: default; }
+
+.tab-pills {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.tab-pills::-webkit-scrollbar { display: none; }
+
+.tab-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 6px 5px 10px;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    font-size: 12.5px;
+    white-space: nowrap;
+    max-width: 190px;
+    min-width: 80px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: #64748b;
+    flex-shrink: 0;
+    transition: background 0.1s, color 0.1s;
+    background: transparent;
+    user-select: none;
+    position: relative;
+}
+.tab-pill:hover { background: #e2e8f0; color: #334155; }
+.tab-pill.is-active {
+    background: #ffffff;
+    border-color: #dbe4ef;
+    border-bottom-color: #ffffff;
+    color: #0f172a;
+    font-weight: 500;
+}
+.tab-icon { flex-shrink: 0; font-size: 12px; }
+.tab-nome {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+.tab-close {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    transition: background 0.1s, color 0.1s;
+}
+.tab-close:hover { background: #fee2e2; color: #ef4444; }
+
+/* ── Tab contents ───────────────────────── */
+.tab-contents {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+.tab-pane {
+    position: absolute;
+    inset: 0;
+    display: none;
+    overflow: hidden;
+}
+.tab-pane.is-active { display: block; }
+
+.ws-hero,
+.ws-selected,
+.ws-recent {
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin: 0 0 4px;
+}
+
+.ws-hero h2 {
+    font-size: 26px;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.ws-hero p {
+    color: #64748b;
+    font-size: 14px;
+    margin: 0;
+}
+
+.ws-selected {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+}
+
+.ws-selected h3 {
+    font-size: 17px;
+    color: #0f172a;
+    margin: 0;
+}
+
+.ws-selected p {
+    color: #64748b;
+    font-size: 13px;
+    margin: 0;
+}
+
+.ws-recent h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 12px;
+}
+
+.recent-list {
+    display: grid;
+    gap: 8px;
+}
+
+.recent-item {
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+}
+
+.recent-item span {
+    color: #64748b;
+    font-size: 12px;
+}
+
+/* ── Responsivo ─────────────────────────── */
+@media (max-width: 820px) {
+    .workspace-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .workspace-sidebar {
+        border-right: none;
+        border-bottom: 1px solid #dbe4ef;
+        max-height: 45vh;
+    }
+
+    .ws-selected {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+
+<script>
+(function () {
+    const TIPO_LABEL = {
+        pasta:    'Pasta',
+        nota:     'Nota',
+        caderno:  'Caderno',
+        planilha: 'Planilha',
+        diagrama: 'Diagrama',
+        jupyter:  'Notebook',
+        tarefa:   'Tarefa',
+        imagem:   'Imagem',
+        python:    'Python',
+        sql:       'SQL',
+        biblioteca:'Biblioteca',
+    };
+
+    const CODE_TYPES = {
+        python: { label: 'PY',  color: '#3776ab' },
+        sql:    { label: 'SQL', color: '#e38c00' },
+    };
+
+    /* ── Expandir / Recolher árvore ───── */
+    document.getElementById('btnExpandirTudo').addEventListener('click', () => {
+        document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
+            sub.style.display = '';
+        });
+    });
+
+    document.getElementById('btnReduzirTudo').addEventListener('click', () => {
+        document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
+            sub.style.display = 'none';
+        });
+    });
+
+    /* ── Sistema de abas ──────────────────── */
+    const allRows       = () => document.querySelectorAll('.topic-row');
+    const welcomeState  = document.getElementById('welcomeState');
+    const workspaceMain = document.getElementById('workspaceMain');
+    const tabBar        = document.getElementById('tabBar');
+    const tabPills      = document.getElementById('tabPills');
+    const tabContents   = document.getElementById('tabContents');
+    const btnVoltar     = document.getElementById('btnVoltar');
+
+    const TIPO_ICONE_TAB = {
+        nota:'📒', caderno:'📔', planilha:'📊',
+        diagrama:'🔷', jupyter:'⚗️', tarefa:'🎯', imagem:'🖼', pdf:'📄',
+        biblioteca:'📚',
+    };
+
+    function iconeTabHtml(tipo) {
+        if (CODE_TYPES[tipo]) {
+            const { label, color } = CODE_TYPES[tipo];
+            return `<span class="code-badge tab-code-icon" data-tab-icon style="background:${color}">${label}</span>`;
+        }
+        return `<span class="tab-icon" data-tab-icon>${TIPO_ICONE_TAB[tipo] || '📄'}</span>`;
+    }
+
+    const tabs = new Map();   /* tabId → { id, pane, pill, history, histPos } */
+    let activeTabId = null;
+    let tabCounter  = 0;
+
+    function infoTopico(id) {
+        const row = document.querySelector(`.topic-row[data-id="${id}"]`);
+        return row
+            ? { nome: row.dataset.nome || '…', tipo: row.dataset.tipo || 'nota' }
+            : { nome: '…', tipo: 'nota' };
+    }
+
+    function carregarUrl(pane, url) {
+        pane.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:14px;">Carregando…</div>';
+        fetch(url, { credentials: 'include' })
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+            .then(html => {
+                pane.innerHTML = html;
+                pane.querySelectorAll('script').forEach(old => {
+                    const s = document.createElement('script');
+                    if (old.src) {
+                        s.src = old.src;
+                        s.async = false;
+                    }
+                    if (old.type) s.type = old.type;
+                    if (old.defer) s.defer = true;
+                    if (old.async) s.async = true;
+                    s.textContent = old.textContent;
+                    old.replaceWith(s);
+                });
+            })
+            .catch(err => {
+                pane.innerHTML = `<div style="padding:32px;color:#ef4444">Erro ao carregar: ${err.message}</div>`;
+            });
+    }
+
+    function carregarEmPane(pane, id) {
+        carregarUrl(pane, '/topico/' + id);
+    }
+
+    function atualizarSidebar(id) {
+        allRows().forEach(r => r.classList.remove('is-active'));
+        const row = document.querySelector(`.topic-row[data-id="${id}"]`);
+        if (!row) return;
+        row.classList.add('is-active');
+        let ul = row.closest('.topic-tree');
+        while (ul) {
+            ul.style.display = '';
+            const parentNode = ul.closest('.topic-node');
+            ul = parentNode ? parentNode.closest('.topic-tree') : null;
+        }
+    }
+
+    function atualizarPill(tabId) {
+        const tab  = tabs.get(tabId);
+        if (!tab) return;
+        const info = infoTopico(tab.history[tab.histPos]);
+        tab.pill.querySelector('.tab-nome').textContent = info.nome;
+        const iconEl = tab.pill.querySelector('[data-tab-icon]');
+        if (CODE_TYPES[info.tipo]) {
+            const { label, color } = CODE_TYPES[info.tipo];
+            iconEl.className = 'code-badge tab-code-icon';
+            iconEl.style.background = color;
+            iconEl.textContent = label;
+        } else {
+            iconEl.className = 'tab-icon';
+            iconEl.style.background = '';
+            iconEl.textContent = TIPO_ICONE_TAB[info.tipo] || '📄';
+        }
+    }
+
+    function atualizarBotaoVoltar() {
+        const tab = activeTabId && tabs.get(activeTabId);
+        btnVoltar.disabled = !tab || tab.histPos === 0;
+    }
+
+    function mostrarUI() {
+        welcomeState.style.display  = 'none';
+        tabBar.style.display        = '';
+        tabContents.style.display   = '';
+    }
+
+    function esconderUI() {
+        welcomeState.style.display  = '';
+        tabBar.style.display        = 'none';
+        tabContents.style.display   = 'none';
+        allRows().forEach(r => r.classList.remove('is-active'));
+    }
+
+    function ativarTab(tabId) {
+        tabs.forEach(t => {
+            t.pane.classList.remove('is-active');
+            t.pill.classList.remove('is-active');
+        });
+        const tab = tabs.get(tabId);
+        if (!tab) return;
+        tab.pane.classList.add('is-active');
+        tab.pill.classList.add('is-active');
+        tab.pill.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        activeTabId = tabId;
+        atualizarSidebar(tab.history[tab.histPos]);
+        atualizarBotaoVoltar();
+    }
+
+    function criarPill(tabId, nome, tipo) {
+        const pill = document.createElement('div');
+        pill.className = 'tab-pill';
+        pill.dataset.tabId = tabId;
+        pill.innerHTML =
+            iconeTabHtml(tipo) +
+            `<span class="tab-nome">${nome}</span>` +
+            `<button class="tab-close" title="Fechar aba">×</button>`;
+        pill.addEventListener('click', e => {
+            if (e.target.closest('.tab-close')) fecharTab(tabId);
+            else ativarTab(tabId);
+        });
+        return pill;
+    }
+
+    function novaAba(topicoId) {
+        const info  = infoTopico(topicoId);
+        const tabId = 't' + (++tabCounter);
+
+        const pane = document.createElement('div');
+        pane.className = 'tab-pane';
+        tabContents.appendChild(pane);
+
+        const pill = criarPill(tabId, info.nome, info.tipo);
+        tabPills.appendChild(pill);
+
+        tabs.set(tabId, { id: topicoId, pane, pill, history: [topicoId], histPos: 0 });
+        mostrarUI();
+        carregarEmPane(pane, topicoId);
+        ativarTab(tabId);
+    }
+
+    function navegarEmTab(tabId, topicoId) {
+        const tab = tabs.get(tabId);
+        if (!tab) return;
+        if (tab.history[tab.histPos] === topicoId) return;   /* mesma nota → noop */
+
+        tab.history = tab.history.slice(0, tab.histPos + 1);
+        tab.history.push(topicoId);
+        tab.histPos = tab.history.length - 1;
+
+        atualizarPill(tabId);
+        carregarEmPane(tab.pane, topicoId);
+        atualizarSidebar(topicoId);
+        atualizarBotaoVoltar();
+    }
+
+    function voltarTab() {
+        const tab = activeTabId && tabs.get(activeTabId);
+        if (!tab || tab.histPos === 0) return;
+        tab.histPos--;
+        atualizarPill(activeTabId);
+        carregarEmPane(tab.pane, tab.history[tab.histPos]);
+        atualizarSidebar(tab.history[tab.histPos]);
+        atualizarBotaoVoltar();
+    }
+
+    function fecharTab(tabId) {
+        const tab = tabs.get(tabId);
+        if (!tab) return;
+        tab.pane.remove();
+        tab.pill.remove();
+        tabs.delete(tabId);
+        if (tabId === painelTabId) painelTabId = null;
+        if (tabs.size === 0) { activeTabId = null; esconderUI(); return; }
+        if (activeTabId === tabId) {
+            ativarTab([...tabs.keys()].at(-1));
+        }
+    }
+
+    /* ── Botão Painel ─────────────────── */
+    let painelTabId = null;
+
+    document.getElementById('btnPainel').addEventListener('click', () => {
+        if (painelTabId && tabs.has(painelTabId)) {
+            ativarTab(painelTabId);
+            return;
+        }
+        const tabId = 't' + (++tabCounter);
+        const pane  = document.createElement('div');
+        pane.className = 'tab-pane';
+        tabContents.appendChild(pane);
+
+        const pill = criarPill(tabId, 'Painel', 'painel');
+        pill.querySelector('.tab-icon').textContent = '📊';
+        tabPills.appendChild(pill);
+
+        tabs.set(tabId, { id: null, pane, pill, history: [], histPos: 0 });
+        painelTabId = tabId;
+
+        mostrarUI();
+        carregarUrl(pane, '/resumo');
+        ativarTab(tabId);
+        allRows().forEach(r => r.classList.remove('is-active'));
+    });
+
+    btnVoltar.addEventListener('click', voltarTab);
+
+    /* ── Painel como workspace padrão ── */
+    document.getElementById('btnPainel').click();
+
+    /* Atalho de teclado Alt+← para voltar */
+    document.addEventListener('keydown', e => {
+        if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); voltarTab(); }
+    });
+
+    /* ── Clique no sidebar ────────────────── */
+    document.getElementById('treePanel').addEventListener('click', (e) => {
+        const row = e.target.closest('.topic-row');
+        if (!row) return;
+        if (row.dataset.tipo === 'pasta' || row.dataset.tipo === 'biblioteca') {
+            const node = row.closest('.topic-node');
+            const sub  = node && node.querySelector('.topic-tree');
+            if (sub) sub.style.display = sub.style.display === 'none' ? '' : 'none';
+            if (row.dataset.tipo === 'pasta') return;
+        }
+        const id = parseInt(row.dataset.id);
+        if (e.ctrlKey || e.metaKey) {
+            novaAba(id);                              /* Ctrl+clique → nova aba */
+        } else if (activeTabId) {
+            navegarEmTab(activeTabId, id);            /* clique normal → mesma aba */
+        } else {
+            novaAba(id);                              /* sem aba ainda → cria */
+        }
+    });
+
+    /* ── Funções globais usadas pelos editores de nota ── */
+    window.navegarParaNota = function(id) {
+        if (!activeTabId) novaAba(id);
+        else navegarEmTab(activeTabId, id);
+    };
+    window.novaAba = novaAba;
+
+    /* ── Menu de contexto ───────────────── */
+    const ctxMenu      = document.getElementById('ctxMenu');
+    const ctxHeader    = document.getElementById('ctxHeader');
+    const ctxBtnDel    = document.getElementById('ctxBtnDeletar');
+    const ctxBtnRen    = document.getElementById('ctxBtnRenomear');
+    const ctxDeleteSep = document.getElementById('ctxDeleteSep');
+    const ctxRenLabel  = document.getElementById('ctxRenLabel');
+    const ctxDelLabel  = document.getElementById('ctxDelLabel');
+    let   ctxPaiId   = '';
+    let   ctxPaiNome = '';
+    let   ctxAlvoId   = '';
+    let   ctxAlvoNome = '';
+    let   ctxAlvoTipo = '';
+
+    function fecharCtx() { ctxMenu.hidden = true; }
+
+    document.getElementById('sidebar').addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+
+        const row = e.target.closest('.topic-row');
+        if (row) {
+            ctxAlvoId   = row.dataset.id;
+            ctxAlvoNome = row.dataset.nome;
+            ctxAlvoTipo = row.dataset.tipo;
+            ctxPaiId    = row.dataset.tipo === 'pasta' || row.dataset.tipo === 'biblioteca' ? row.dataset.id : '';
+            ctxPaiNome  = row.dataset.tipo === 'pasta' || row.dataset.tipo === 'biblioteca' ? row.dataset.nome : '';
+            const tipoLabel = TIPO_LABEL[ctxAlvoTipo] || 'Item';
+            ctxHeader.textContent = row.dataset.tipo === 'pasta' || row.dataset.tipo === 'biblioteca'
+                ? `Dentro de "${ctxPaiNome}"`
+                : `${tipoLabel}: "${ctxAlvoNome}"`;
+            ctxRenLabel.textContent = `Renomear ${tipoLabel.toLowerCase()}`;
+            ctxDelLabel.textContent = `Deletar ${tipoLabel.toLowerCase()}`;
+            ctxBtnRen.hidden    = false;
+            ctxBtnDel.hidden    = false;
+            ctxDeleteSep.hidden = false;
+        } else {
+            ctxPaiId   = '';
+            ctxPaiNome = '';
+            ctxAlvoId   = '';
+            ctxAlvoNome = '';
+            ctxAlvoTipo = '';
+            ctxHeader.textContent = 'Na raiz';
+            ctxBtnRen.hidden    = true;
+            ctxBtnDel.hidden    = true;
+            ctxDeleteSep.hidden = true;
+        }
+
+        /* Posiciona o menu */
+        ctxMenu.hidden = false;
+        const mw = ctxMenu.offsetWidth;
+        const mh = ctxMenu.offsetHeight;
+        let x = e.clientX;
+        let y = e.clientY;
+        if (x + mw > window.innerWidth)  x = window.innerWidth  - mw - 8;
+        if (y + mh > window.innerHeight) y = window.innerHeight - mh - 8;
+        ctxMenu.style.left = x + 'px';
+        ctxMenu.style.top  = y + 'px';
+    });
+
+    /* Fecha ao clicar fora */
+    document.addEventListener('click', fecharCtx);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharCtx(); });
+
+    /* ── Helper: criar modal ────────────── */
+    function criarModal(innerHTML) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-backdrop';
+        modal.innerHTML = innerHTML;
+        modal.querySelector('[data-close]')?.addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+        return modal;
+    }
+
+    /* ── Modal: novo item ───────────────── */
+    const createUrl = document.getElementById('sidebar').dataset.createUrl;
+
+    function abrirModal(tipo) {
+        const paiLabel  = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
+        const tipoLabel = TIPO_LABEL[tipo] || tipo;
+        const modal = criarModal(`
+            <div class="modal-box">
+                <p class="modal-subtitle">${paiLabel}</p>
+                <h3 class="modal-title">Nova ${tipoLabel}</h3>
+                <form method="post" action="${createUrl}">
+                    <input type="hidden" name="tipo" value="${tipo}">
+                    <input type="hidden" name="id_pai" value="${ctxPaiId}">
+                    <div class="form-group">
+                        <label>Nome</label>
+                        <input name="nome" type="text" placeholder="Ex.: Aula 01"
+                               required autocomplete="off">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Criar</button>
+                    </div>
+                </form>
+            </div>`);
+        setTimeout(() => modal.querySelector('input[name="nome"]').focus(), 30);
+    }
+
+    /* ── Modal: importar PDF ────────────── */
+    const pdfUrl = document.getElementById('sidebar').dataset.pdfUrl;
+
+    function abrirPdfModal() {
+        const paiLabel = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
+        criarModal(`
+            <div class="modal-box">
+                <p class="modal-subtitle">${paiLabel}</p>
+                <h3 class="modal-title">Importar PDF</h3>
+                <form method="post" action="${pdfUrl}" enctype="multipart/form-data">
+                    <input type="hidden" name="id_pai_pdf" value="${ctxPaiId}">
+                    <div class="form-group">
+                        <label>Arquivo PDF</label>
+                        <input name="arquivo_pdf" type="file" accept="application/pdf" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Importar</button>
+                    </div>
+                </form>
+            </div>`);
+    }
+
+    /* ── Renomear item ──────────────────── */
+    ctxBtnRen.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fecharCtx();
+        const id = ctxAlvoId, nome = ctxAlvoNome;
+        if (!id) return;
+        const tipoLabel = TIPO_LABEL[ctxAlvoTipo] || 'Item';
+
+        const modal = criarModal(`
+            <div class="modal-box">
+                <p class="modal-subtitle">Renomear ${tipoLabel.toLowerCase()}</p>
+                <h3 class="modal-title">Novo nome</h3>
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input id="inputRenomear" type="text" value="${nome}" autocomplete="off" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnConfirmarRen">Renomear</button>
+                </div>
+            </div>`);
+
+        const input = modal.querySelector('#inputRenomear');
+        const confirmar = () => {
+            const novoNome = input.value.trim();
+            if (!novoNome) return;
+            fetch(`/topicos/${id}/renomear`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome: novoNome }),
+            }).then(r => r.json()).then(d => {
+                if (d.ok) window.location.reload();
+                else alert(d.erro || 'Erro.');
+            });
+            modal.remove();
+        };
+
+        modal.querySelector('#btnConfirmarRen').addEventListener('click', confirmar);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') confirmar(); });
+        setTimeout(() => { input.focus(); input.select(); }, 30);
+    });
+
+    /* ── Deletar item ───────────────────── */
+    ctxBtnDel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fecharCtx();
+        const id = ctxAlvoId, nome = ctxAlvoNome;
+        if (!id) return;
+        const tipoLabel = TIPO_LABEL[ctxAlvoTipo] || 'Item';
+        const avisoConteudo = (ctxAlvoTipo === 'pasta' || ctxAlvoTipo === 'biblioteca') ? ' e todo o seu conteudo' : '';
+
+        const modal = criarModal(`
+            <div class="modal-box">
+                <h3 class="modal-title" style="color:#ef4444">Deletar ${tipoLabel.toLowerCase()}</h3>
+                <p style="font-size:14px;color:#475569;margin:0 0 16px">
+                    Deletar <strong>${nome}</strong>${avisoConteudo}?<br>
+                    <span style="color:#ef4444;font-size:13px">Esta ação não pode ser desfeita.</span>
+                </p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                    <button type="button" class="btn btn-sm" id="btnConfirmarDel"
+                            style="background:#ef4444;color:#fff;border-color:#ef4444">Deletar</button>
+                </div>
+            </div>`);
+
+        modal.querySelector('#btnConfirmarDel').addEventListener('click', () => {
+            fetch(`/topicos/${id}/deletar`, { method: 'POST' })
+                .then(r => r.json())
+                .then(d => { if (d.ok) window.location.reload(); else alert(d.erro || 'Erro ao deletar.'); });
+            modal.remove();
+        });
+    });
+
+    /* ── Clique nos itens do menu ───────── */
+    ctxMenu.querySelectorAll('.ctx-item[data-tipo]').forEach((item) => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fecharCtx();
+            const tipo = item.dataset.tipo;
+            if (tipo === '_pdf') {
+                abrirPdfModal();
+            } else {
+                abrirModal(tipo);
+            }
+        });
+    });
+
+    /* ── Drag & drop na árvore lateral ─ */
+    const rootDropZone = document.getElementById('rootDropZone');
+
+    /* Estado global acessível pelos handlers inline do template */
+    window._sbId = null;   // id do item sendo arrastado
+
+    window.sbDragStart = function(e) {
+        const el = e.currentTarget;
+        window._sbId = el.dataset.id;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', window._sbId);
+        /* rAF: evita capturar o ghost já com a classe de opacidade */
+        requestAnimationFrame(() => {
+            el.classList.add('is-dragging');
+            rootDropZone.classList.add('drag-ativo');
+        });
+    };
+
+    window.sbDragEnd = function(e) {
+        e.currentTarget.classList.remove('is-dragging');
+        rootDropZone.classList.remove('drag-ativo', 'drag-sobre');
+        document.querySelectorAll('.topic-row.drag-alvo')
+            .forEach(r => r.classList.remove('drag-alvo'));
+        window._sbId = null;
+    };
+
+    window.sbDragOver = function(e) {
+        const el = e.currentTarget;
+        if (!window._sbId || el.dataset.id === window._sbId) return;
+        e.preventDefault();                        /* obrigatório para drop */
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        /* Destaca só esta pasta */
+        document.querySelectorAll('.topic-row.drag-alvo')
+            .forEach(r => { if (r !== el) r.classList.remove('drag-alvo'); });
+        el.classList.add('drag-alvo');
+    };
+
+    window.sbDrop = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const el = e.currentTarget;
+        el.classList.remove('drag-alvo');
+        if (!window._sbId) return;
+        sbMover(window._sbId, parseInt(el.dataset.id));
+    };
+
+    /* Zona de raiz */
+    rootDropZone.addEventListener('dragover', (e) => {
+        if (!window._sbId) return;
+        e.preventDefault();
+        document.querySelectorAll('.topic-row.drag-alvo')
+            .forEach(r => r.classList.remove('drag-alvo'));
+        rootDropZone.classList.add('drag-sobre');
+    });
+    rootDropZone.addEventListener('dragleave', () => {
+        rootDropZone.classList.remove('drag-sobre');
+    });
+    rootDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        rootDropZone.classList.remove('drag-sobre');
+        if (!window._sbId) return;
+        sbMover(window._sbId, null);
+    });
+
+    function sbMover(id, novoPaiId) {
+        fetch(`/topicos/${id}/mover`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_pai: novoPaiId }),
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.ok) window.location.reload();
+            else alert(res.erro || 'Não foi possível mover o item.');
+        });
+    }
+
+}());
+</script>
+{% endblock %}

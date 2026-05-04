@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+{% block title %}Tarefas Rápidas — NeuralNotes{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ─────────────────────────────────────────── */
+.tf-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 56px);
+    padding: 0;
+    max-width: 100%;
+}
+
+.tf-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px 12px;
+    background: var(--painel);
+    border-bottom: 1px solid var(--borda);
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.tf-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--texto);
+    margin: 0;
+    white-space: nowrap;
+}
+
+.tf-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tf-filter-group {
+    display: flex;
+    gap: 4px;
+    background: var(--cartao);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.tf-filter-btn {
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--apagado);
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.tf-filter-btn.ativo {
+    background: var(--painel);
+    color: var(--texto);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12);
+}
+
+.tf-date-custom {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.tf-date-custom input[type="date"] {
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+/* ── Table area ─────────────────────────────────────── */
+.tf-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 24px 24px;
+}
+
+.tf-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--apagado);
+    font-size: 15px;
+    gap: 8px;
+}
+
+.tf-empty-icon { font-size: 40px; }
+
+.tf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+}
+
+.tf-table th {
+    background: var(--cartao);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--apagado);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border-bottom: 2px solid var(--borda);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.tf-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--borda);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.tf-table tr:hover td { background: var(--cartao); }
+
+.tf-table tr.concluida td {
+    color: var(--apagado);
+    text-decoration: line-through;
+}
+
+.tf-table tr.concluida td:last-child { text-decoration: none; }
+
+.tf-col-check { width: 42px; text-align: center; }
+.tf-col-data  { width: 110px; white-space: nowrap; }
+.tf-col-sol   { width: 160px; }
+.tf-col-desc  { }
+.tf-col-conc  { width: 100px; white-space: nowrap; color: var(--apagado); font-size: 12px; }
+.tf-col-acoes { width: 80px; text-align: right; white-space: nowrap; }
+
+.tf-check {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--verde);
+}
+
+.tf-btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    font-size: 15px;
+    transition: background .15s;
+    opacity: .65;
+}
+
+.tf-btn-icon:hover { background: var(--borda); opacity: 1; }
+
+/* ── Modal ──────────────────────────────────────────── */
+.tf-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tf-modal-backdrop[hidden] { display: none !important; }
+
+.tf-modal {
+    background: var(--painel);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-lg);
+}
+
+.tf-modal h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 20px;
+}
+
+.tf-modal .form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--apagado);
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.tf-modal .form-group input,
+.tf-modal .form-group textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color .2s, box-shadow .2s;
+}
+
+.tf-modal .form-group input:focus,
+.tf-modal .form-group textarea:focus {
+    outline: none;
+    border-color: var(--destaque);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+.tf-modal .form-group textarea { resize: vertical; min-height: 80px; }
+
+.tf-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.tf-badge-concluida {
+    display: inline-block;
+    background: #d1fae5;
+    color: #065f46;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 99px;
+    padding: 1px 8px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tf-page">
+
+  <!-- Header -->
+  <div class="tf-header">
+    <h1>🎯 Tarefas Rápidas</h1>
+
+    <div class="tf-filters">
+      <!-- Status filter -->
+      <div class="tf-filter-group" id="filterStatus">
+        <button class="tf-filter-btn ativo" data-status="pendentes">Pendentes</button>
+        <button class="tf-filter-btn"       data-status="concluidas">Concluídas</button>
+        <button class="tf-filter-btn"       data-status="todas">Todas</button>
+      </div>
+
+      <!-- Date filter -->
+      <div class="tf-filter-group" id="filterData">
+        <button class="tf-filter-btn"       data-periodo="hoje">Hoje</button>
+        <button class="tf-filter-btn"       data-periodo="semana">Esta semana</button>
+        <button class="tf-filter-btn ativo" data-periodo="mes">Este mês</button>
+        <button class="tf-filter-btn"       data-periodo="todos">Todos</button>
+        <button class="tf-filter-btn"       data-periodo="custom">Personalizado</button>
+      </div>
+
+      <div class="tf-date-custom" id="customRange">
+        <input type="date" id="dataInicio" title="De">
+        <span>–</span>
+        <input type="date" id="dataFim" title="Até">
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-sm" onclick="abrirModal()">+ Nova tarefa</button>
+  </div>
+
+  <!-- Table -->
+  <div class="tf-body">
+    <div id="emptyState" class="tf-empty" style="display:none">
+      <span class="tf-empty-icon">✅</span>
+      <span>Nenhuma tarefa encontrada</span>
+    </div>
+
+    <table class="tf-table" id="tabelaTarefas">
+      <thead>
+        <tr>
+          <th class="tf-col-check">✓</th>
+          <th class="tf-col-data">Data</th>
+          <th class="tf-col-sol">Solicitante</th>
+          <th class="tf-col-desc">Descrição</th>
+          <th class="tf-col-conc">Concluída</th>
+          <th class="tf-col-acoes"></th>
+        </tr>
+      </thead>
+      <tbody id="tbodyTarefas">
+        {% for t in tarefas %}
+        <tr data-id="{{ t.id }}"
+            data-data="{{ t.data_tarefa.isoformat() }}"
+            data-concluida="{{ 'true' if t.concluida else 'false' }}"
+            class="{{ 'concluida' if t.concluida else '' }}">
+          <td class="tf-col-check">
+            <input type="checkbox" class="tf-check"
+                   {{ 'checked' if t.concluida else '' }}
+                   onchange="toggleTarefa({{ t.id }}, this)">
+          </td>
+          <td class="tf-col-data">{{ t.data_tarefa.strftime('%d/%m/%Y') }}</td>
+          <td class="tf-col-sol">{{ t.solicitante or '—' }}</td>
+          <td class="tf-col-desc">{{ t.descricao }}</td>
+          <td class="tf-col-conc tf-cell-conc">{{ t.concluida_em.strftime('%d/%m/%Y') if t.concluida_em else '—' }}</td>
+          <td class="tf-col-acoes">
+            <button class="tf-btn-icon" title="Editar"
+                    onclick="abrirModalEditar({{ t.id }}, '{{ t.data_tarefa.isoformat() }}', {{ t.solicitante|tojson }}, {{ t.descricao|tojson }})">✏️</button>
+            <button class="tf-btn-icon" title="Excluir"
+                    onclick="excluirTarefa({{ t.id }})">🗑️</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal criar/editar -->
+<div class="tf-modal-backdrop" id="modalBackdrop" hidden>
+  <div class="tf-modal" role="dialog" aria-modal="true">
+    <h2 id="modalTitulo">Nova Tarefa</h2>
+
+    <div class="form-group">
+      <label>Data</label>
+      <input type="date" id="inputData">
+    </div>
+    <div class="form-group">
+      <label>Solicitante</label>
+      <input type="text" id="inputSolicitante" placeholder="Nome de quem pediu (opcional)">
+    </div>
+    <div class="form-group">
+      <label>Descrição <span style="color:var(--rosa)">*</span></label>
+      <textarea id="inputDescricao" placeholder="Detalhe da tarefa..."></textarea>
+    </div>
+
+    <div class="tf-modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="salvarTarefa()">Salvar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  /* ── Estado ───────────────────────────────────────── */
+  let editandoId = null;
+
+  /* ── Filtros ──────────────────────────────────────── */
+  let filtroStatus  = 'pendentes';
+  let filtroPeriodo = 'mes';
+
+  document.querySelectorAll('#filterStatus .tf-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#filterStatus .tf-filter-btn').forEach(b => b.classList.remove('ativo'));
+      btn.classList.add('ativo');
+      filtroStatus = btn.dataset.status;
+      aplicarFiltros();
+    });
+  });
+
+  document.querySelectorAll('#filterData .tf-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#filterData .tf-filter-btn').forEach(b => b.classList.remove('ativo'));
+      btn.classList.add('ativo');
+      filtroPeriodo = btn.dataset.periodo;
+      document.getElementById('customRange').style.display = filtroPeriodo === 'custom' ? 'flex' : 'none';
+      aplicarFiltros();
+    });
+  });
+
+  document.getElementById('dataInicio').addEventListener('change', aplicarFiltros);
+  document.getElementById('dataFim').addEventListener('change', aplicarFiltros);
+
+  function aplicarFiltros() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    let inicioPeriodo = null;
+    let fimPeriodo    = null;
+
+    if (filtroPeriodo === 'hoje') {
+      inicioPeriodo = fimPeriodo = hoje;
+    } else if (filtroPeriodo === 'semana') {
+      const dow = hoje.getDay();
+      inicioPeriodo = new Date(hoje); inicioPeriodo.setDate(hoje.getDate() - dow);
+      fimPeriodo    = new Date(hoje); fimPeriodo.setDate(hoje.getDate() + (6 - dow));
+    } else if (filtroPeriodo === 'mes') {
+      inicioPeriodo = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      fimPeriodo    = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+    } else if (filtroPeriodo === 'custom') {
+      const vi = document.getElementById('dataInicio').value;
+      const vf = document.getElementById('dataFim').value;
+      inicioPeriodo = vi ? new Date(vi + 'T00:00:00') : null;
+      fimPeriodo    = vf ? new Date(vf + 'T00:00:00') : null;
+    }
+
+    let visiveis = 0;
+    document.querySelectorAll('#tbodyTarefas tr').forEach(tr => {
+      const concluida = tr.dataset.concluida === 'true';
+      const dataTarefa = new Date(tr.dataset.data + 'T00:00:00');
+
+      let okStatus = true;
+      if (filtroStatus === 'pendentes') okStatus = !concluida;
+      else if (filtroStatus === 'concluidas') okStatus = concluida;
+
+      let okPeriodo = true;
+      if (filtroPeriodo !== 'todos' && filtroPeriodo !== 'custom') {
+        okPeriodo = dataTarefa >= inicioPeriodo && dataTarefa <= fimPeriodo;
+      } else if (filtroPeriodo === 'custom') {
+        if (inicioPeriodo) okPeriodo = dataTarefa >= inicioPeriodo;
+        if (fimPeriodo)    okPeriodo = okPeriodo && dataTarefa <= fimPeriodo;
+      }
+
+      const visivel = okStatus && okPeriodo;
+      tr.style.display = visivel ? '' : 'none';
+      if (visivel) visiveis++;
+    });
+
+    document.getElementById('emptyState').style.display = visiveis === 0 ? 'flex' : 'none';
+    document.getElementById('tabelaTarefas').style.display = visiveis === 0 ? 'none' : '';
+  }
+
+  /* Aplicar filtro inicial */
+  aplicarFiltros();
+
+  /* ── Modal ────────────────────────────────────────── */
+  window.abrirModal = function () {
+    editandoId = null;
+    document.getElementById('modalTitulo').textContent = 'Nova Tarefa';
+    document.getElementById('inputData').value = new Date().toISOString().split('T')[0];
+    document.getElementById('inputSolicitante').value = '';
+    document.getElementById('inputDescricao').value = '';
+    document.getElementById('modalBackdrop').removeAttribute('hidden');
+  };
+
+  window.abrirModalEditar = function (id, data, solicitante, descricao) {
+    editandoId = id;
+    document.getElementById('modalTitulo').textContent = 'Editar Tarefa';
+    document.getElementById('inputData').value = data;
+    document.getElementById('inputSolicitante').value = solicitante || '';
+    document.getElementById('inputDescricao').value = descricao || '';
+    document.getElementById('modalBackdrop').removeAttribute('hidden');
+  };
+
+  window.fecharModal = function () {
+    document.getElementById('modalBackdrop').setAttribute('hidden', '');
+  };
+
+  document.getElementById('modalBackdrop').addEventListener('click', function (e) {
+    if (e.target === this) fecharModal();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') fecharModal();
+  });
+
+  /* ── CRUD ─────────────────────────────────────────── */
+  window.salvarTarefa = async function () {
+    const data        = document.getElementById('inputData').value;
+    const solicitante = document.getElementById('inputSolicitante').value.trim();
+    const descricao   = document.getElementById('inputDescricao').value.trim();
+
+    if (!descricao) {
+      document.getElementById('inputDescricao').focus();
+      return;
+    }
+
+    const payload = { data_tarefa: data, solicitante, descricao };
+
+    if (editandoId) {
+      const r = await fetch(`/tarefas/${editandoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (r.ok) {
+        fecharModal();
+        location.reload();
+      }
+    } else {
+      const r = await fetch('/tarefas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (r.ok) {
+        fecharModal();
+        location.reload();
+      }
+    }
+  };
+
+  window.toggleTarefa = async function (id, checkbox) {
+    const r = await fetch(`/tarefas/${id}/toggle`, { method: 'POST' });
+    if (r.ok) {
+      const dados = await r.json();
+      const tr = checkbox.closest('tr');
+      tr.dataset.concluida = dados.concluida ? 'true' : 'false';
+      tr.classList.toggle('concluida', dados.concluida);
+      const cellConc = tr.querySelector('.tf-cell-conc');
+      if (cellConc) cellConc.textContent = dados.concluida_em || '—';
+      aplicarFiltros();
+    } else {
+      checkbox.checked = !checkbox.checked;
+    }
+  };
+
+  window.excluirTarefa = async function (id) {
+    if (!confirm('Excluir esta tarefa?')) return;
+    const r = await fetch(`/tarefas/${id}`, { method: 'DELETE' });
+    if (r.ok) {
+      document.querySelector(`#tbodyTarefas tr[data-id="${id}"]`)?.remove();
+      aplicarFiltros();
+    }
+  };
+})();
+</script>
+{% endblock %}

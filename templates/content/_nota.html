@@ -1,0 +1,308 @@
+<div class="doc-wrap">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge">{{ '📒' if topico.tipo == 'nota' else '🎯' if topico.tipo == 'tarefa' else '📒' }}</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <span class="save-badge" id="saveBadge">—</span>
+  </header>
+
+  <div class="toolbar" id="toolbar">
+    <button class="tb" data-cmd="bold"              title="Negrito (Ctrl+B)"><b>B</b></button>
+    <button class="tb" data-cmd="italic"            title="Itálico (Ctrl+I)"><i>I</i></button>
+    <button class="tb" data-cmd="underline"         title="Sublinhado (Ctrl+U)"><u>U</u></button>
+    <button class="tb" data-cmd="strikeThrough"     title="Tachado"><s>S</s></button>
+    <span class="tb-sep"></span>
+    <button class="tb" data-cmd="formatBlock" data-val="h1" title="Título 1">H1</button>
+    <button class="tb" data-cmd="formatBlock" data-val="h2" title="Título 2">H2</button>
+    <button class="tb" data-cmd="formatBlock" data-val="h3" title="Título 3">H3</button>
+    <button class="tb" data-cmd="formatBlock" data-val="p"  title="Parágrafo">¶</button>
+    <span class="tb-sep"></span>
+    <button class="tb" data-cmd="insertUnorderedList" title="Lista de itens">• —</button>
+    <button class="tb" data-cmd="insertOrderedList"   title="Lista numerada">1. —</button>
+    <span class="tb-sep"></span>
+    <button class="tb" data-cmd="removeFormat" title="Limpar formatação">✕ fmt</button>
+  </div>
+
+  <div class="editor-area" id="editorArea"
+       contenteditable="true"
+       data-id="{{ topico.id }}"
+       spellcheck="false">
+    {% if conteudo and conteudo.conteudo %}
+      {{ conteudo.conteudo | safe }}
+    {% else %}
+      <p><br></p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.doc-wrap{display:flex;flex-direction:column;height:100%;background:#fff;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:14px;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.save-badge{font-size:12px;color:#94a3b8;flex-shrink:0;transition:color 0.2s}
+.save-badge.saving{color:#f59e0b}
+.save-badge.saved{color:#22c55e}
+.save-badge.error{color:#ef4444}
+.toolbar{display:flex;align-items:center;gap:2px;padding:6px 16px;border-bottom:1px solid #e2e8f0;flex-shrink:0;flex-wrap:wrap;background:#f8fafc}
+.tb{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 6px;background:transparent;border:1px solid transparent;border-radius:4px;cursor:pointer;font-size:12px;color:#374151;transition:all 0.1s;font-family:inherit}
+.tb:hover{background:#e2e8f0;border-color:#cbd5e1}
+.tb.active{background:#dbeafe;border-color:#93c5fd;color:#2563eb}
+.tb-sep{width:1px;height:18px;background:#e2e8f0;margin:0 4px;flex-shrink:0}
+.editor-area{flex:1;overflow-y:auto;padding:28px 48px;font-size:15px;line-height:1.85;color:#1e293b;outline:none;min-height:0}
+.editor-area:focus{outline:none}
+.editor-area h1{font-size:26px;font-weight:700;margin:0 0 14px;color:#0f172a}
+.editor-area h2{font-size:20px;font-weight:600;margin:20px 0 10px;color:#1e293b}
+.editor-area h3{font-size:16px;font-weight:600;margin:16px 0 8px;color:#374151}
+.editor-area p{margin:0 0 10px}
+.editor-area ul,.editor-area ol{padding-left:26px;margin:0 0 10px}
+.editor-area li{margin-bottom:3px}
+/* Nota links */
+.nota-link{color:#2563eb;background:#eff6ff;border-radius:3px;padding:1px 5px;text-decoration:none;font-weight:500;cursor:pointer;border-bottom:1px solid #bfdbfe;transition:background 0.12s;white-space:nowrap}
+.nota-link:hover{background:#dbeafe;border-bottom-color:#93c5fd}
+/* Autocomplete popup */
+#notaLinkPopup{position:fixed;z-index:9999;background:#fff;border:1px solid #dbe4ef;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.14);min-width:210px;max-width:340px;overflow:hidden;font-size:13px}
+.nlp-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;color:#1e293b;transition:background 0.1s}
+.nlp-item:hover,.nlp-item.sel{background:#eff6ff;color:#2563eb}
+.nlp-empty{padding:10px 12px;color:#94a3b8;font-size:13px}
+.nlp-hint{padding:4px 12px 6px;font-size:11px;color:#cbd5e1;border-top:1px solid #f1f5f9}
+@media(max-width:640px){.editor-area{padding:16px 18px}}
+</style>
+
+<script>
+(function(){
+  const area    = document.getElementById('editorArea');
+  const badge   = document.getElementById('saveBadge');
+  const toolbar = document.getElementById('toolbar');
+  if (!area) return;
+
+  const saveUrl = '/topico/' + area.dataset.id + '/salvar';
+  let saveTimer, acTimer;
+  let popup = null, acItems = [], acIdx = -1;
+
+  const TIPO_ICONE = {nota:'📒',caderno:'📔',planilha:'📊',diagrama:'🔷',jupyter:'⚗️',tarefa:'🎯',imagem:'🖼'};
+
+  /* ── Toolbar ── */
+  toolbar.querySelectorAll('.tb').forEach(btn => {
+    btn.addEventListener('mousedown', e => {
+      e.preventDefault();
+      document.execCommand(btn.dataset.cmd, false, btn.dataset.val || null);
+      area.focus();
+    });
+  });
+
+  /* ── Auto-save ── */
+  function salvar() {
+    badge.textContent = 'Salvando…';
+    badge.className   = 'save-badge saving';
+    fetch(saveUrl, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ conteudo: area.innerHTML })
+    })
+    .then(r => r.json())
+    .then(d => {
+      badge.textContent = d.ok ? 'Salvo ✓' : 'Erro';
+      badge.className   = d.ok ? 'save-badge saved' : 'save-badge error';
+    })
+    .catch(() => { badge.textContent = 'Erro'; badge.className = 'save-badge error'; });
+  }
+
+  area.addEventListener('input', () => {
+    badge.textContent = 'Editando…';
+    badge.className   = 'save-badge saving';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(salvar, 1500);
+    clearTimeout(acTimer);
+    acTimer = setTimeout(checkAC, 180);
+  });
+
+  area.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      clearTimeout(saveTimer);
+      salvar();
+      return;
+    }
+    if (!popup) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      acIdx = Math.min(acIdx + 1, acItems.length - 1);
+      renderACSel();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      acIdx = Math.max(acIdx - 1, 0);
+      renderACSel();
+    } else if (e.key === 'Enter' && acIdx >= 0) {
+      e.preventDefault();
+      selectAC(acItems[acIdx]);
+    } else if (e.key === 'Escape') {
+      hideAC();
+    }
+  });
+
+  /* ── Nota link — click (delegated) ── */
+  area.addEventListener('click', e => {
+    const a = e.target.closest('a.nota-link');
+    if (!a) return;
+    e.preventDefault();
+    const novaTab  = e.ctrlKey || e.metaKey;
+    const navegar  = novaTab ? window.novaAba : window.navegarParaNota;
+    if (!navegar) return;
+    const id   = a.dataset.id ? parseInt(a.dataset.id) : null;
+    const nome = a.dataset.nome || '';
+    if (id) {
+      navegar(id);
+    } else if (nome) {
+      fetch('/topicos/buscar?q=' + encodeURIComponent(nome))
+        .then(r => r.json())
+        .then(items => {
+          const exact = items.find(i => i.nome.toLowerCase() === nome.toLowerCase());
+          const t = exact || items[0];
+          if (t) navegar(t.id);
+        });
+    }
+  });
+
+  /* ── Wrap plain #Word patterns in text nodes on load ── */
+  function wrapNotaLinks(root) {
+    const RE = /#([A-Za-zÀ-ɏ][A-Za-zÀ-ɏ0-9_]*)/g;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        const p = n.parentElement;
+        if (!p || p.closest('a') || p.tagName === 'SCRIPT' || p.tagName === 'STYLE')
+          return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    nodes.forEach(tn => {
+      const txt = tn.textContent;
+      RE.lastIndex = 0;
+      let m, last = 0;
+      const parts = [];
+      while ((m = RE.exec(txt))) {
+        if (m.index > last) parts.push(document.createTextNode(txt.slice(last, m.index)));
+        const a = document.createElement('a');
+        a.className = 'nota-link';
+        a.dataset.nome = m[1];
+        a.textContent = m[0];
+        a.href = '#';
+        a.contentEditable = 'false';
+        parts.push(a);
+        last = RE.lastIndex;
+      }
+      if (!parts.length) return;
+      if (last < txt.length) parts.push(document.createTextNode(txt.slice(last)));
+      const frag = document.createDocumentFragment();
+      parts.forEach(p => frag.appendChild(p));
+      tn.parentNode.replaceChild(frag, tn);
+    });
+  }
+
+  /* ── Autocomplete helpers ── */
+  function getHashCtx() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    const rng = sel.getRangeAt(0);
+    if (!rng.collapsed) return null;
+    const node = rng.startContainer;
+    if (node.nodeType !== Node.TEXT_NODE || !area.contains(node)) return null;
+    const before = node.textContent.slice(0, rng.startOffset);
+    const m = before.match(/#\s*([^#\n\r]{0,80})$/);
+    if (!m) return null;
+    const query = m[1].trim();
+    if (!query) return null;
+    return { node, start: rng.startOffset - m[0].length, end: rng.startOffset, query, rng };
+  }
+
+  function checkAC() {
+    const ctx = getHashCtx();
+    if (!ctx) { hideAC(); return; }
+    fetch('/topicos/buscar?q=' + encodeURIComponent(ctx.query))
+      .then(r => r.json())
+      .then(items => { if (getHashCtx()) showAC(ctx, items); else hideAC(); })
+      .catch(hideAC);
+  }
+
+  function showAC(ctx, items) {
+    hideAC();
+    const rect = ctx.rng.getBoundingClientRect();
+    popup = document.createElement('div');
+    popup.id = 'notaLinkPopup';
+    popup.style.top  = (rect.bottom + 6) + 'px';
+    popup.style.left = rect.left + 'px';
+    acItems = items;
+    acIdx   = items.length ? 0 : -1;
+    if (!items.length) {
+      popup.innerHTML = '<div class="nlp-empty">Nenhuma nota encontrada</div>';
+    } else {
+      items.forEach((it, i) => {
+        const div = document.createElement('div');
+        div.className = 'nlp-item' + (i === 0 ? ' sel' : '');
+        div.innerHTML = `<span>${TIPO_ICONE[it.tipo] || '📄'}</span><span>${it.nome}</span>`;
+        div.addEventListener('mousedown', e => { e.preventDefault(); selectAC(it); });
+        popup.appendChild(div);
+      });
+      const hint = document.createElement('div');
+      hint.className = 'nlp-hint';
+      hint.textContent = '↑↓ navegar · Enter selecionar · Esc fechar';
+      popup.appendChild(hint);
+    }
+    document.body.appendChild(popup);
+    const pr = popup.getBoundingClientRect();
+    if (pr.right  > window.innerWidth)  popup.style.left = (window.innerWidth  - pr.width  - 8) + 'px';
+    if (pr.bottom > window.innerHeight) popup.style.top  = (rect.top - pr.height - 6) + 'px';
+  }
+
+  function renderACSel() {
+    if (!popup) return;
+    popup.querySelectorAll('.nlp-item').forEach((el, i) => el.classList.toggle('sel', i === acIdx));
+  }
+
+  function hideAC() {
+    if (popup) { popup.remove(); popup = null; acItems = []; acIdx = -1; }
+  }
+
+  function selectAC(item) {
+    const ctx = getHashCtx();
+    hideAC();
+    if (!ctx) return;
+    const rng = document.createRange();
+    rng.setStart(ctx.node, ctx.start);
+    rng.setEnd(ctx.node, ctx.end);
+    rng.deleteContents();
+    const a = document.createElement('a');
+    a.className = 'nota-link';
+    a.dataset.id   = item.id;
+    a.dataset.nome = item.nome;
+    a.textContent  = '#' + item.nome;
+    a.href = '#';
+    a.contentEditable = 'false';
+    rng.insertNode(a);
+    /* Move cursor after the inserted link */
+    const sel = window.getSelection();
+    const nr  = document.createRange();
+    nr.setStartAfter(a);
+    nr.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(nr);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(salvar, 1500);
+  }
+
+  /* Hide popup when cursor leaves the #word token */
+  document.addEventListener('selectionchange', () => { if (popup && !getHashCtx()) hideAC(); });
+  document.addEventListener('click', e => { if (popup && !popup.contains(e.target)) hideAC(); });
+
+  /* ── Init ── */
+  wrapNotaLinks(area);
+  area.focus();
+}());
+</script>

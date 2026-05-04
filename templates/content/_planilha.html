@@ -1,0 +1,139 @@
+{% set dados = conteudo.dados_json | tojson if conteudo else '{"colunas":["A","B","C"],"linhas":[["","",""],["","",""],["","",""]]}' %}
+
+<div class="plan-wrap">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge">📊</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <div class="plan-actions">
+      <button id="addCol" title="Adicionar coluna">+ Coluna</button>
+      <button id="addRow" title="Adicionar linha">+ Linha</button>
+      <span class="save-badge" id="saveBadge">—</span>
+    </div>
+  </header>
+
+  <div class="plan-scroll">
+    <table class="plan-table" id="planTable">
+      <thead id="planHead"></thead>
+      <tbody id="planBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<style>
+.plan-wrap{display:flex;flex-direction:column;height:100%;background:#fff;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:14px;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.plan-actions button{padding:4px 10px;border:1px solid #dbe4ef;border-radius:5px;cursor:pointer;background:#f8fafc;font-size:12px;color:#374151;transition:all 0.15s}
+.plan-actions button:hover{background:#e2e8f0}
+.save-badge{font-size:12px;color:#94a3b8;transition:color 0.2s}
+.save-badge.saving{color:#f59e0b}
+.save-badge.saved{color:#22c55e}
+.save-badge.error{color:#ef4444}
+.plan-scroll{flex:1;overflow:auto;min-height:0}
+.plan-table{border-collapse:collapse;min-width:100%}
+.plan-table th{background:#f8fafc;border:1px solid #e2e8f0;padding:6px 12px;font-size:12px;font-weight:700;color:#64748b;text-align:center;min-width:120px;white-space:nowrap;position:sticky;top:0;z-index:1}
+.plan-table td{border:1px solid #e2e8f0;padding:0;min-width:120px;height:32px}
+.plan-table td div{padding:4px 10px;min-height:32px;font-size:13px;color:#1e293b;outline:none;white-space:pre-wrap}
+.plan-table td div:focus{background:#eff6ff;outline:2px solid #93c5fd;outline-offset:-2px}
+.plan-table tr:hover td{background:#fafbfc}
+</style>
+
+<script>
+(function(){
+  const saveUrl   = '/topico/{{ topico.id }}/salvar';
+  const badge     = document.getElementById('saveBadge');
+  const planHead  = document.getElementById('planHead');
+  const planBody  = document.getElementById('planBody');
+
+  let dados;
+  try { dados = JSON.parse({{ dados | safe }}); }
+  catch { dados = {colunas:['A','B','C'], linhas:[['','',''],['','',''],['','','']]}; }
+
+  /* ── Renderizar ── */
+  function renderizar() {
+    /* Cabeçalho */
+    planHead.innerHTML = '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<th>#</th>';
+    dados.colunas.forEach(c => {
+      const th = document.createElement('th');
+      th.contentEditable = 'true';
+      th.textContent = c;
+      th.addEventListener('blur', () => { dados.colunas[Array.from(tr.children).indexOf(th) - 1] = th.textContent.trim() || '?'; salvar(); });
+      tr.appendChild(th);
+    });
+    planHead.appendChild(tr);
+
+    /* Linhas */
+    planBody.innerHTML = '';
+    dados.linhas.forEach((linha, ri) => {
+      const row = document.createElement('tr');
+      const numCell = document.createElement('td');
+      numCell.innerHTML = `<div style="text-align:center;color:#94a3b8;user-select:none">${ri + 1}</div>`;
+      row.appendChild(numCell);
+      dados.colunas.forEach((_, ci) => {
+        const td  = document.createElement('td');
+        const div = document.createElement('div');
+        div.contentEditable = 'true';
+        div.textContent = linha[ci] ?? '';
+        div.addEventListener('input', () => {
+          dados.linhas[ri][ci] = div.textContent;
+          agendarSalvar();
+        });
+        td.appendChild(div);
+        row.appendChild(td);
+      });
+      planBody.appendChild(row);
+    });
+  }
+
+  /* ── Auto-save ── */
+  let timer;
+  function agendarSalvar() {
+    badge.textContent = 'Editando…';
+    badge.className   = 'save-badge saving';
+    clearTimeout(timer);
+    timer = setTimeout(salvar, 1500);
+  }
+
+  function salvar() {
+    badge.textContent = 'Salvando…';
+    badge.className   = 'save-badge saving';
+    fetch(saveUrl, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ dados_json: JSON.stringify(dados) })
+    })
+    .then(r => r.json())
+    .then(d => {
+      badge.textContent = d.ok ? 'Salvo ✓' : 'Erro';
+      badge.className   = d.ok ? 'save-badge saved' : 'save-badge error';
+    })
+    .catch(() => { badge.textContent = 'Erro'; badge.className = 'save-badge error'; });
+  }
+
+  /* ── Adicionar coluna / linha ── */
+  document.getElementById('addCol').addEventListener('click', () => {
+    const letra = String.fromCharCode(65 + dados.colunas.length);
+    dados.colunas.push(letra);
+    dados.linhas.forEach(l => l.push(''));
+    renderizar();
+    salvar();
+  });
+
+  document.getElementById('addRow').addEventListener('click', () => {
+    dados.linhas.push(new Array(dados.colunas.length).fill(''));
+    renderizar();
+    salvar();
+  });
+
+  renderizar();
+}());
+</script>

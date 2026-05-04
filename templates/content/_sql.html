@@ -1,0 +1,123 @@
+<div class="doc-wrap">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="code-lang-badge sql-badge">SQL</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <span class="save-badge" id="saveBadge">—</span>
+  </header>
+
+  <div class="code-wrap">
+    <div class="line-numbers" id="lineNumbers" aria-hidden="true">1</div>
+    <textarea class="code-editor" id="codeEditor"
+              data-id="{{ topico.id }}"
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off">{{ conteudo.conteudo if conteudo else '-- SQL\n' }}</textarea>
+  </div>
+
+</div>
+
+<style>
+.doc-wrap    { display:flex; flex-direction:column; height:100%; background:#1a1a2e; overflow:hidden }
+.doc-hdr     { display:flex; justify-content:space-between; align-items:center; padding:10px 20px; border-bottom:1px solid #2d2d44; flex-shrink:0; gap:12px; background:#13131f }
+.doc-hdr-left{ display:flex; align-items:center; gap:10px; min-width:0 }
+.doc-titulo  { font-size:15px; font-weight:600; color:#e2e8f0; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.save-badge  { font-size:12px; color:#4a5568; flex-shrink:0; transition:color 0.2s }
+.save-badge.saving { color:#f6c90e }
+.save-badge.saved  { color:#48bb78 }
+.save-badge.error  { color:#fc8181 }
+
+.code-lang-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  border-radius:4px; font-size:10px; font-weight:800; color:#fff;
+  font-family:'Courier New',monospace; letter-spacing:-0.3px; line-height:1;
+  padding:3px 6px; flex-shrink:0;
+}
+.sql-badge { background:#e38c00 }
+
+.code-wrap {
+  flex:1; display:flex; overflow:hidden; min-height:0;
+  font-family:'Courier New','Fira Code',Consolas,monospace; font-size:13.5px; line-height:1.6;
+}
+
+.line-numbers {
+  padding:16px 12px 16px 16px; color:#3d4052; text-align:right;
+  background:#13131f; border-right:1px solid #2d2d44; flex-shrink:0;
+  white-space:pre; overflow:hidden; user-select:none; min-width:40px;
+  font-family:inherit; font-size:inherit; line-height:inherit;
+}
+
+.code-editor {
+  flex:1; padding:16px 20px; border:none; outline:none; resize:none;
+  background:#1a1a2e; color:#e2e8f0; caret-color:#f6c90e;
+  font-family:inherit; font-size:inherit; line-height:inherit;
+  tab-size:2; white-space:pre; overflow-wrap:normal; overflow-x:auto;
+}
+</style>
+
+<script>
+(function(){
+  const editor  = document.getElementById('codeEditor');
+  const lineNos = document.getElementById('lineNumbers');
+  const badge   = document.getElementById('saveBadge');
+  if (!editor) return;
+
+  const saveUrl = '/topico/' + editor.dataset.id + '/salvar';
+  let saveTimer;
+
+  function updateLines() {
+    const n = (editor.value.match(/\n/g) || []).length + 1;
+    if (lineNos.childElementCount === n) return;
+    lineNos.textContent = Array.from({length: n}, (_, i) => i + 1).join('\n');
+  }
+
+  function salvar() {
+    badge.textContent = 'Salvando…'; badge.className = 'save-badge saving';
+    fetch(saveUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ conteudo: editor.value })
+    })
+    .then(r => r.json())
+    .then(d => {
+      badge.textContent = d.ok ? 'Salvo ✓' : 'Erro';
+      badge.className   = d.ok ? 'save-badge saved' : 'save-badge error';
+    })
+    .catch(() => { badge.textContent = 'Erro'; badge.className = 'save-badge error'; });
+  }
+
+  editor.addEventListener('input', () => {
+    badge.textContent = 'Editando…'; badge.className = 'save-badge saving';
+    updateLines();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(salvar, 1500);
+  });
+
+  editor.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault(); clearTimeout(saveTimer); salvar(); return;
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, end = editor.selectionEnd;
+      editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(end);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+
+  let scrollTicking = false;
+  editor.addEventListener('scroll', () => {
+    if (!scrollTicking) {
+      requestAnimationFrame(() => { lineNos.scrollTop = editor.scrollTop; scrollTicking = false; });
+      scrollTicking = true;
+    }
+  });
+
+  updateLines();
+  editor.focus();
+}());
+</script>
