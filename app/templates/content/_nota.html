@@ -23,6 +23,15 @@
     <button class="tb" data-cmd="insertOrderedList"   title="Lista numerada">1. —</button>
     <span class="tb-sep"></span>
     <button class="tb" data-cmd="removeFormat" title="Limpar formatação">✕ fmt</button>
+    <span class="tb-sep"></span>
+    <button class="tb" id="btnInsertLink" title="Inserir link externo">🔗</button>
+  </div>
+
+  <div id="linkInsertBar" style="display:none;align-items:center;gap:6px;padding:5px 16px;border-bottom:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap">
+    <input id="linkUrl"  type="url"  placeholder="https://…"            style="flex:2;min-width:160px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;outline:none">
+    <input id="linkText" type="text" placeholder="Texto exibido (opcional)" style="flex:2;min-width:130px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;outline:none">
+    <button id="linkInsertBtn" style="padding:3px 10px;background:#2563eb;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit">Inserir</button>
+    <button id="linkCancelBtn" style="padding:3px 8px;background:transparent;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;color:#64748b">✕</button>
   </div>
 
   <div class="editor-area" id="editorArea"
@@ -64,6 +73,10 @@
 /* Nota links */
 .nota-link{color:#2563eb;background:#eff6ff;border-radius:3px;padding:1px 5px;text-decoration:none;font-weight:500;cursor:pointer;border-bottom:1px solid #bfdbfe;transition:background 0.12s;white-space:nowrap}
 .nota-link:hover{background:#dbeafe;border-bottom-color:#93c5fd}
+/* Links externos */
+.ext-link{color:#0f766e;background:#f0fdfa;border-radius:3px;padding:1px 5px;text-decoration:none;font-weight:500;cursor:pointer;border-bottom:1px solid #99f6e4;transition:background 0.12s}
+.ext-link::after{content:"↗";font-size:9px;margin-left:2px;opacity:.7}
+.ext-link:hover{background:#ccfbf1;border-bottom-color:#2dd4bf}
 /* Autocomplete popup */
 #notaLinkPopup{position:fixed;z-index:9999;background:#fff;border:1px solid #dbe4ef;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.14);min-width:210px;max-width:340px;overflow:hidden;font-size:13px}
 /* Image resize */
@@ -93,16 +106,87 @@
   const saveUrl = '/topico/' + area.dataset.id + '/salvar';
   let saveTimer, acTimer;
   let popup = null, acItems = [], acIdx = -1;
+  let savedRange = null;
 
   const TIPO_ICONE = {nota:'📒',caderno:'📔',planilha:'📊',diagrama:'🔷',jupyter:'⚗️',tarefa:'🎯',imagem:'🖼'};
 
   /* ── Toolbar ── */
-  toolbar.querySelectorAll('.tb').forEach(btn => {
+  toolbar.querySelectorAll('.tb[data-cmd]').forEach(btn => {
     btn.addEventListener('mousedown', e => {
       e.preventDefault();
       document.execCommand(btn.dataset.cmd, false, btn.dataset.val || null);
       area.focus();
     });
+  });
+
+  /* ── Inserir link externo ── */
+  const linkBar    = document.getElementById('linkInsertBar');
+  const linkUrlEl  = document.getElementById('linkUrl');
+  const linkTextEl = document.getElementById('linkText');
+
+  document.getElementById('btnInsertLink').addEventListener('mousedown', e => {
+    e.preventDefault();
+    const sel = window.getSelection();
+    savedRange = sel?.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    linkTextEl.value = savedRange && !savedRange.collapsed ? savedRange.toString() : '';
+    linkUrlEl.value  = '';
+    linkBar.style.display = 'flex';
+    linkUrlEl.focus();
+  });
+
+  function fecharLinkBar() {
+    linkBar.style.display = 'none';
+    savedRange = null;
+  }
+
+  document.getElementById('linkCancelBtn').addEventListener('click', fecharLinkBar);
+
+  document.getElementById('linkInsertBtn').addEventListener('click', () => {
+    const url  = linkUrlEl.value.trim();
+    if (!url) { linkUrlEl.style.borderColor = '#ef4444'; return; }
+    const text = linkTextEl.value.trim() || url;
+    fecharLinkBar();
+    area.focus();
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.className = 'ext-link';
+    a.contentEditable = 'false';
+    a.textContent = text;
+
+    const sel = window.getSelection();
+    if (savedRange) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      savedRange.deleteContents();
+      savedRange.insertNode(a);
+      const nr = document.createRange();
+      nr.setStartAfter(a); nr.collapse(true);
+      sel.removeAllRanges(); sel.addRange(nr);
+    } else {
+      document.execCommand('insertHTML', false, a.outerHTML);
+    }
+    clearTimeout(saveTimer); saveTimer = setTimeout(salvar, 1500);
+  });
+
+  linkUrlEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('linkInsertBtn').click();
+    if (e.key === 'Escape') fecharLinkBar();
+  });
+  linkTextEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('linkInsertBtn').click();
+    if (e.key === 'Escape') fecharLinkBar();
+  });
+  linkUrlEl.addEventListener('input', () => { linkUrlEl.style.borderColor = '#cbd5e1'; });
+
+  /* ── Click em link externo ── */
+  area.addEventListener('click', e => {
+    const a = e.target.closest('a.ext-link');
+    if (!a) return;
+    e.preventDefault();
+    window.open(a.href, '_blank', 'noopener,noreferrer');
   });
 
   /* ── Auto-save ── */

@@ -36,7 +36,7 @@
       <article class="bib-card" data-id="{{ item.id }}">
 
         <!-- Capa -->
-        <div class="bib-cover" title="Trocar capa">
+        <div class="bib-cover bib-cover-link" data-id="{{ item.id }}" title="Abrir PDF">
           {% if pdf.capa %}
           <img src="/static/{{ pdf.capa }}" class="bib-cover-img" alt="capa">
           {% else %}
@@ -45,8 +45,8 @@
             <span>PDF</span>
           </div>
           {% endif %}
-          <div class="bib-cover-overlay">
-            <label class="bib-cover-upload-btn">
+          <div class="bib-cover-overlay" onclick="event.stopPropagation()">
+            <label class="bib-cover-upload-btn" title="Trocar capa">
               🖼 Trocar capa
               <input type="file" accept="image/*" class="bib-capa-input"
                      data-id="{{ item.id }}" style="display:none">
@@ -198,12 +198,13 @@
 .bib-save-badge.error  { color:#ef4444 }
 .bib-nota-wrap[hidden] { display:none }
 .bib-nota {
-    min-height:48px; max-height:120px; overflow-y:auto;
-    padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px;
+    min-height:72px; max-height:280px; overflow-y:auto;
+    padding:7px 10px; border:1.5px solid #e2e8f0; border-radius:6px;
     font-size:12px; line-height:1.6; color:#1e293b;
-    outline:none; background:#f8fafc; transition:border-color 0.15s;
+    outline:none; background:#fff; transition:border-color 0.15s;
+    resize: vertical;
 }
-.bib-nota:focus { border-color:#7c3aed; background:#fff }
+.bib-nota:focus { border-color:#7c3aed; background:#fff; box-shadow:0 0 0 3px rgba(124,58,237,.08) }
 .bib-nota[data-placeholder]:empty::before {
     content:attr(data-placeholder); color:#94a3b8; pointer-events:none }
 
@@ -243,6 +244,16 @@
 
   const TIPO_ICONE = { nota:'📒', caderno:'📔', planilha:'📊',
                        diagrama:'🔷', jupyter:'⚗️', tarefa:'🎯', imagem:'🖼' };
+
+  /* ── Clique na capa: abrir PDF ── */
+  document.querySelectorAll('.bib-cover-link').forEach(cover => {
+    cover.addEventListener('click', e => {
+      if (e.target.closest('.bib-cover-overlay')) return;
+      const id  = parseInt(cover.dataset.id);
+      const nav = (e.ctrlKey || e.metaKey) ? window.novaAba : window.navegarParaNota;
+      if (nav) nav(id);
+    });
+  });
 
   /* ── Upload de capa ── */
   document.querySelectorAll('.bib-capa-input').forEach(input => {
