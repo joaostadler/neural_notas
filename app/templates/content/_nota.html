@@ -66,6 +66,16 @@
 .nota-link:hover{background:#dbeafe;border-bottom-color:#93c5fd}
 /* Autocomplete popup */
 #notaLinkPopup{position:fixed;z-index:9999;background:#fff;border:1px solid #dbe4ef;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.14);min-width:210px;max-width:340px;overflow:hidden;font-size:13px}
+/* Image resize */
+.editor-area img{cursor:pointer;max-width:100%}
+.editor-area img.img-sel{outline:2px solid #3b82f6;outline-offset:1px}
+#imgResizeBox{position:fixed;border:1.5px solid #3b82f6;pointer-events:none;z-index:9000;display:none;box-sizing:border-box}
+.img-rh{position:absolute;width:10px;height:10px;background:#3b82f6;border:2px solid #fff;border-radius:2px;pointer-events:all;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.img-rh[data-h=nw]{top:-5px;left:-5px;cursor:nw-resize}
+.img-rh[data-h=ne]{top:-5px;right:-5px;cursor:ne-resize}
+.img-rh[data-h=sw]{bottom:-5px;left:-5px;cursor:sw-resize}
+.img-rh[data-h=se]{bottom:-5px;right:-5px;cursor:se-resize}
+.img-rh-lbl{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;pointer-events:none;opacity:.85}
 .nlp-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;color:#1e293b;transition:background 0.1s}
 .nlp-item:hover,.nlp-item.sel{background:#eff6ff;color:#2563eb}
 .nlp-empty{padding:10px 12px;color:#94a3b8;font-size:13px}
@@ -300,6 +310,87 @@
   /* Hide popup when cursor leaves the #word token */
   document.addEventListener('selectionchange', () => { if (popup && !getHashCtx()) hideAC(); });
   document.addEventListener('click', e => { if (popup && !popup.contains(e.target)) hideAC(); });
+
+  /* ── Image resize ── */
+  const resBox = document.createElement('div');
+  resBox.id = 'imgResizeBox';
+  resBox.innerHTML =
+    '<div class="img-rh" data-h="nw"></div>' +
+    '<div class="img-rh" data-h="ne"></div>' +
+    '<div class="img-rh" data-h="sw"></div>' +
+    '<div class="img-rh" data-h="se"></div>' +
+    '<div class="img-rh-lbl" id="imgSizeLbl"></div>';
+  document.body.appendChild(resBox);
+
+  const sizeLbl = document.getElementById('imgSizeLbl');
+  let selImg = null, dragH = null, dragStart = null;
+
+  function syncBox() {
+    if (!selImg) return;
+    const r = selImg.getBoundingClientRect();
+    resBox.style.left   = r.left   + 'px';
+    resBox.style.top    = r.top    + 'px';
+    resBox.style.width  = r.width  + 'px';
+    resBox.style.height = r.height + 'px';
+    sizeLbl.textContent = Math.round(r.width) + ' × ' + Math.round(r.height);
+  }
+
+  function selectImage(img) {
+    if (selImg) selImg.classList.remove('img-sel');
+    selImg = img;
+    img.classList.add('img-sel');
+    resBox.style.display = 'block';
+    syncBox();
+  }
+
+  function deselectImage() {
+    if (selImg) selImg.classList.remove('img-sel');
+    selImg = null;
+    resBox.style.display = 'none';
+  }
+
+  area.addEventListener('click', e => {
+    if (e.target.tagName === 'IMG') { selectImage(e.target); return; }
+    if (!resBox.contains(e.target)) deselectImage();
+  });
+
+  area.addEventListener('scroll', syncBox);
+  window.addEventListener('resize', syncBox);
+
+  resBox.querySelectorAll('.img-rh').forEach(h => {
+    h.addEventListener('mousedown', e => {
+      e.preventDefault();
+      if (!selImg) return;
+      dragH = h.dataset.h;
+      const r = selImg.getBoundingClientRect();
+      dragStart = {
+        x: e.clientX, y: e.clientY,
+        w: r.width,   h: r.height,
+        ratio: selImg.naturalWidth > 0
+          ? selImg.naturalWidth / selImg.naturalHeight
+          : r.width / r.height
+      };
+    });
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragH || !selImg || !dragStart) return;
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    const hDelta = dragH.includes('e') ? dx : -dx;
+    const vDelta = dragH.includes('s') ? dy : -dy;
+    const delta  = Math.abs(hDelta) >= Math.abs(vDelta) ? hDelta : vDelta;
+    const nw = Math.max(40, dragStart.w + delta);
+    selImg.style.width  = nw + 'px';
+    selImg.style.height = (nw / dragStart.ratio) + 'px';
+    syncBox();
+    badge.textContent = 'Editando…';
+    badge.className   = 'save-badge saving';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(salvar, 1500);
+  });
+
+  document.addEventListener('mouseup', () => { dragH = null; dragStart = null; });
 
   /* ── Init ── */
   wrapNotaLinks(area);
