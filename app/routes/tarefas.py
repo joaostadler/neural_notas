@@ -104,8 +104,20 @@ def toggle_tarefa(id):
     if not tarefa:
         return jsonify({'erro': 'Não encontrado'}), 404
 
+    dados = request.get_json(silent=True) or {}
     tarefa.concluida = not tarefa.concluida
-    tarefa.concluida_em = datetime.utcnow() if tarefa.concluida else None
+    if tarefa.concluida:
+        tarefa.concluida_em = datetime.utcnow()
+        obs = (dados.get('observacao') or '').strip()
+        tarefa.observacao_conclusao = obs if obs else None
+    else:
+        tarefa.concluida_em = None
+        tarefa.observacao_conclusao = None
     db.session.commit()
     concluida_em_str = tarefa.concluida_em.strftime('%d/%m/%Y') if tarefa.concluida_em else None
-    return jsonify({'ok': True, 'concluida': tarefa.concluida, 'concluida_em': concluida_em_str})
+    return jsonify({
+        'ok': True,
+        'concluida': tarefa.concluida,
+        'concluida_em': concluida_em_str,
+        'observacao': tarefa.observacao_conclusao or '',
+    })

@@ -239,6 +239,22 @@
     border-radius: 99px;
     padding: 1px 8px;
 }
+
+.tf-obs {
+    display: block;
+    font-size: 12px;
+    color: var(--apagado);
+    margin-top: 3px;
+    font-style: italic;
+}
+
+.tf-table tr.concluida .tf-obs { text-decoration: none; }
+
+.tf-modal-sub {
+    font-size: 13px;
+    color: var(--apagado);
+    margin: -12px 0 18px;
+}
 </style>
 {% endblock %}
 
@@ -307,7 +323,10 @@
           </td>
           <td class="tf-col-data">{{ t.data_tarefa.strftime('%d/%m/%Y') }}</td>
           <td class="tf-col-sol">{{ t.solicitante or '—' }}</td>
-          <td class="tf-col-desc">{{ t.descricao }}</td>
+          <td class="tf-col-desc">
+            <div class="tf-desc-text">{{ t.descricao }}</div>
+            {% if t.observacao_conclusao %}<em class="tf-obs">{{ t.observacao_conclusao }}</em>{% endif %}
+          </td>
           <td class="tf-col-conc tf-cell-conc">{{ t.concluida_em.strftime('%d/%m/%Y') if t.concluida_em else '—' }}</td>
           <td class="tf-col-acoes">
             <button class="tf-btn-icon" title="Editar"
@@ -343,6 +362,21 @@
     <div class="tf-modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="fecharModal()">Cancelar</button>
       <button class="btn btn-primary btn-sm" onclick="salvarTarefa()">Salvar</button>
+    </div>
+  </div>
+</div>
+<!-- Modal observação de conclusão -->
+<div class="tf-modal-backdrop" id="modalObsBackdrop" hidden>
+  <div class="tf-modal" role="dialog" aria-modal="true">
+    <h2>Concluindo tarefa</h2>
+    <p class="tf-modal-sub">Adicione uma observação sobre a conclusão (opcional).</p>
+    <div class="form-group">
+      <label>Observação</label>
+      <textarea id="inputObservacao" placeholder="Como foi resolvida? Algum detalhe relevante..."></textarea>
+    </div>
+    <div class="tf-modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="cancelarConclusao()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmarConclusao()">Confirmar conclusão</button>
     </div>
   </div>
 </div>
@@ -460,7 +494,10 @@
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') fecharModal();
+    if (e.key === 'Escape') {
+      fecharModal();
+      cancelarConclusao();
+    }
   });
 
   /* ── CRUD ─────────────────────────────────────────── */
@@ -499,20 +536,69 @@
     }
   };
 
-  window.toggleTarefa = async function (id, checkbox) {
-    const r = await fetch(`/tarefas/${id}/toggle`, { method: 'POST' });
+  /* ── Observação de conclusão ─────────────────────── */
+  let _obsId = null, _obsCb = null;
+
+  window.toggleTarefa = function (id, checkbox) {
+    if (checkbox.checked) {
+      checkbox.checked = false;
+      _obsId = id;
+      _obsCb = checkbox;
+      document.getElementById('inputObservacao').value = '';
+      document.getElementById('modalObsBackdrop').removeAttribute('hidden');
+      setTimeout(() => document.getElementById('inputObservacao').focus(), 80);
+    } else {
+      _concluirToggle(id, checkbox, null);
+    }
+  };
+
+  window.cancelarConclusao = function () {
+    document.getElementById('modalObsBackdrop').setAttribute('hidden', '');
+    _obsId = null; _obsCb = null;
+  };
+
+  window.confirmarConclusao = async function () {
+    const obs = document.getElementById('inputObservacao').value.trim();
+    const id = _obsId, checkbox = _obsCb;
+    document.getElementById('modalObsBackdrop').setAttribute('hidden', '');
+    _obsId = null; _obsCb = null;
+    await _concluirToggle(id, checkbox, obs);
+  };
+
+  async function _concluirToggle(id, checkbox, obs) {
+    const body = obs !== null ? JSON.stringify({ observacao: obs }) : undefined;
+    const r = await fetch(`/tarefas/${id}/toggle`, {
+      method: 'POST',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body,
+    });
     if (r.ok) {
       const dados = await r.json();
+      checkbox.checked = dados.concluida;
       const tr = checkbox.closest('tr');
       tr.dataset.concluida = dados.concluida ? 'true' : 'false';
       tr.classList.toggle('concluida', dados.concluida);
       const cellConc = tr.querySelector('.tf-cell-conc');
       if (cellConc) cellConc.textContent = dados.concluida_em || '—';
+      const cellDesc = tr.querySelector('.tf-col-desc');
+      if (cellDesc) {
+        cellDesc.querySelector('.tf-obs')?.remove();
+        if (dados.observacao) {
+          const em = document.createElement('em');
+          em.className = 'tf-obs';
+          em.textContent = dados.observacao;
+          cellDesc.appendChild(em);
+        }
+      }
       aplicarFiltros();
     } else {
       checkbox.checked = !checkbox.checked;
     }
-  };
+  }
+
+  document.getElementById('modalObsBackdrop').addEventListener('click', function (e) {
+    if (e.target === this) cancelarConclusao();
+  });
 
   window.excluirTarefa = async function (id) {
     if (!confirm('Excluir esta tarefa?')) return;

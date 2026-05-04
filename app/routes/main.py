@@ -428,6 +428,48 @@ def buscar_topicos():
     return jsonify([{'id': t.id, 'nome': t.nome, 'tipo': t.tipo} for t in topicos])
 
 
+@bp_main.route('/topicos/pesquisar')
+@login_required
+def pesquisar_topicos():
+    import re
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    vistos = {}
+
+    por_nome = (
+        Topico.query
+        .filter(
+            Topico.id_usuario == current_user.id,
+            Topico.nome.ilike(f'%{q}%')
+        )
+        .order_by(Topico.nome)
+        .limit(20)
+        .all()
+    )
+    for t in por_nome:
+        vistos[t.id] = {'id': t.id, 'nome': t.nome, 'tipo': t.tipo, 'match': 'nome'}
+
+    for model_cls, join_col in [(Nota, Nota.id_topico), (Caderno, Caderno.id_topico)]:
+        por_conteudo = (
+            Topico.query
+            .join(model_cls, join_col == Topico.id)
+            .filter(
+                Topico.id_usuario == current_user.id,
+                model_cls.conteudo.ilike(f'%{q}%')
+            )
+            .order_by(Topico.nome)
+            .limit(20)
+            .all()
+        )
+        for t in por_conteudo:
+            if t.id not in vistos:
+                vistos[t.id] = {'id': t.id, 'nome': t.nome, 'tipo': t.tipo, 'match': 'conteúdo'}
+
+    return jsonify(list(vistos.values())[:25])
+
+
 @bp_main.route('/resumo')
 @login_required
 def resumo():

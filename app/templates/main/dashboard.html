@@ -79,6 +79,15 @@
         </div>
         <div class="sidebar-hr"></div>
 
+        <div class="sidebar-search">
+            <span class="sidebar-search-ico">🔍</span>
+            <input type="text" class="sidebar-search-input" id="sidebarSearchInput"
+                   placeholder="Buscar notas…" autocomplete="off" spellcheck="false">
+            <button class="sidebar-search-clear" id="sidebarSearchClear" title="Limpar">×</button>
+        </div>
+
+        <div class="search-results" id="searchResults"></div>
+
         <div id="rootDropZone" class="root-drop-zone">
             ↖ Soltar aqui para mover para a raiz
         </div>
@@ -257,6 +266,107 @@
     height: 1px;
     background: #dbe4ef;
     flex-shrink: 0;
+}
+
+/* ── Busca na sidebar ────────────────── */
+.sidebar-search {
+    padding: 7px 8px 6px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.sidebar-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 28px 5px 28px;
+    border: 1px solid #dbe4ef;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    background: #f8fafc;
+    color: #1e293b;
+    outline: none;
+    transition: border-color .15s, background .15s;
+}
+
+.sidebar-search-input:focus {
+    border-color: #93c5fd;
+    background: #fff;
+}
+
+.sidebar-search-ico {
+    position: absolute;
+    left: 17px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.sidebar-search-clear {
+    position: absolute;
+    right: 17px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #94a3b8;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    line-height: 1;
+    display: none;
+}
+
+.sidebar-search-clear.visivel { display: block; }
+
+.search-results {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 4px;
+}
+
+.search-results.visivel { display: block; }
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #1e293b;
+    transition: background .1s;
+}
+
+.search-result-item:hover { background: #eff6ff; }
+
+.search-result-nome {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.search-result-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 99px;
+    flex-shrink: 0;
+}
+
+.search-result-badge.badge-nome     { background: #dbeafe; color: #1d4ed8; }
+.search-result-badge.badge-conteudo { background: #fef9c3; color: #854d0e; }
+
+.search-empty {
+    padding: 16px 12px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12px;
 }
 
 /* ── Drag & drop na árvore ──────────── */
@@ -1075,6 +1185,73 @@
         else navegarEmTab(activeTabId, id);
     };
     window.novaAba = novaAba;
+
+    /* ── Busca na sidebar ─────────────────────────────── */
+    const searchInput   = document.getElementById('sidebarSearchInput');
+    const searchClear   = document.getElementById('sidebarSearchClear');
+    const searchResults = document.getElementById('searchResults');
+    const treePanel     = document.getElementById('treePanel');
+
+    const TIPO_ICONE_BUSCA = {
+        nota:'📒', caderno:'📔', planilha:'📊', diagrama:'🔷',
+        jupyter:'⚗️', tarefa:'🎯', imagem:'🖼', pdf:'📄',
+        biblioteca:'📚', python:'🐍', sql:'🗄',
+    };
+
+    let searchTimer = null;
+
+    function mostrarArvore() {
+        searchResults.classList.remove('visivel');
+        treePanel.style.display = '';
+    }
+
+    function mostrarResultados(itens) {
+        treePanel.style.display = 'none';
+        searchResults.classList.add('visivel');
+
+        if (!itens.length) {
+            searchResults.innerHTML = '<div class="search-empty">Nenhuma nota encontrada</div>';
+            return;
+        }
+
+        searchResults.innerHTML = '';
+        itens.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'search-result-item';
+            const badgeClass = item.match === 'nome' ? 'badge-nome' : 'badge-conteudo';
+            const icone = TIPO_ICONE_BUSCA[item.tipo] || '📄';
+            div.innerHTML =
+                `<span>${icone}</span>` +
+                `<span class="search-result-nome">${item.nome}</span>` +
+                `<span class="search-result-badge ${badgeClass}">${item.match}</span>`;
+            div.addEventListener('click', () => {
+                window.navegarParaNota(item.id);
+            });
+            searchResults.appendChild(div);
+        });
+    }
+
+    searchInput.addEventListener('input', () => {
+        const q = searchInput.value.trim();
+        searchClear.classList.toggle('visivel', q.length > 0);
+
+        clearTimeout(searchTimer);
+        if (q.length < 2) { mostrarArvore(); return; }
+
+        searchTimer = setTimeout(() => {
+            fetch('/topicos/pesquisar?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(mostrarResultados)
+                .catch(() => mostrarArvore());
+        }, 250);
+    });
+
+    searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        searchClear.classList.remove('visivel');
+        mostrarArvore();
+        searchInput.focus();
+    });
 
     /* ── Menu de contexto ───────────────── */
     const ctxMenu      = document.getElementById('ctxMenu');
