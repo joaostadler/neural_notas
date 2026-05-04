@@ -153,6 +153,7 @@ class CartaoKanban(db.Model):
     ordem = db.Column(db.Integer, default=0)
     visivel_sidebar = db.Column(db.Boolean, default=True)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    observacoes_conclusao = db.Column(db.Text, default='')
 
     # Relacionamentos
     historico_etapas = db.relationship('HistoricoEtapas', backref='cartao', lazy=True, cascade='all, delete-orphan')
