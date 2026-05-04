@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NeuralNotes - Workspace de Conhecimento{% endblock %}</title>
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="{{ url_for('main.dashboard') }}" class="brand-logo">🧠 NeuralNotes</a>
+        </div>
+        <div class="navbar-menu">
+            <a href="{{ url_for('main.dashboard') }}" class="navbar-item navbar-link">Biblioteca</a>
+            <a href="{{ url_for('kanban.kanban') }}" class="navbar-item navbar-link">Kanban</a>
+            <a href="{{ url_for('tarefas.tarefas') }}" class="navbar-item navbar-link">Tarefas</a>
+            <span class="navbar-item">Bem-vindo, <strong>{{ current_user.nome }}</strong></span>
+            <a href="{{ url_for('auth.logout') }}" class="navbar-item btn-logout">Sair</a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                        <button type="button" class="alert-close" onclick="this.parentElement.style.display='none';">&times;</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

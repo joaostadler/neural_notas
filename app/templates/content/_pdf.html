@@ -1,0 +1,216 @@
+<div class="pdf-wrap" data-topico-id="{{ topico.id }}">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge">PDF</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    {% if conteudo and conteudo.caminho %}
+      <div class="pdf-actions">
+        <span class="pdf-save-badge" id="pdfSaveBadge">-</span>
+        <a class="btn-open-pdf"
+           href="{{ url_for('static', filename=conteudo.caminho) }}"
+           target="_blank" rel="noopener">Abrir em nova aba</a>
+      </div>
+    {% endif %}
+  </header>
+
+  <div class="pdf-viewer">
+    {% if conteudo and conteudo.caminho %}
+      <div class="pdf-toolbar">
+        <button type="button" class="pdf-btn" id="pdfPrev">Anterior</button>
+        <span class="pdf-page-label">
+          <span id="pdfPageNum">1</span>/<span id="pdfPageCount">-</span>
+        </span>
+        <button type="button" class="pdf-btn" id="pdfNext">Proxima</button>
+        <span class="pdf-progress" id="pdfProgress">{{ conteudo.percentual_lido }}%</span>
+      </div>
+      <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
+        <canvas id="pdfCanvas"></canvas>
+        <div class="pdf-loading" id="pdfLoading">Carregando PDF...</div>
+        <iframe
+          id="pdfFallbackFrame"
+          src="{{ url_for('static', filename=conteudo.caminho) }}"
+          title="{{ topico.nome }}"
+          hidden></iframe>
+      </div>
+    {% else %}
+      <div class="no-content">Arquivo PDF nao encontrado.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.pdf-wrap{display:flex;flex-direction:column;height:100%;background:#fff;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:11px;font-weight:800;color:#ef4444;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.pdf-save-badge{font-size:12px;color:#94a3b8}
+.pdf-save-badge.saving{color:#f59e0b}
+.pdf-save-badge.saved{color:#22c55e}
+.pdf-save-badge.error{color:#ef4444}
+.btn-open-pdf{font-size:12px;color:#2563eb;text-decoration:none;padding:5px 10px;border:1px solid #bfdbfe;border-radius:6px;white-space:nowrap;transition:all 0.15s;flex-shrink:0}
+.btn-open-pdf:hover{background:#eff6ff}
+.pdf-viewer{flex:1;min-height:0;display:flex;flex-direction:column;background:#f8fafc}
+.pdf-toolbar{height:42px;display:flex;align-items:center;justify-content:center;gap:10px;border-bottom:1px solid #e2e8f0;background:#fff;flex-shrink:0}
+.pdf-btn{height:28px;padding:0 12px;border:1px solid #dbe4ef;border-radius:6px;background:#fff;color:#334155;font-size:12px;cursor:pointer}
+.pdf-btn:hover:not(:disabled){background:#f1f5f9}
+.pdf-btn:disabled{color:#cbd5e1;cursor:default}
+.pdf-page-label{font-size:13px;color:#475569;min-width:70px;text-align:center}
+.pdf-progress{font-size:12px;font-weight:700;color:#7c3aed;min-width:42px;text-align:right}
+.pdf-canvas-wrap{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:18px;position:relative}
+#pdfCanvas{background:#fff;box-shadow:0 4px 24px rgba(15,23,42,.16);max-width:100%;height:auto}
+#pdfFallbackFrame{width:100%;height:100%;border:none;background:#fff}
+.pdf-loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:14px}
+.no-content{display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:15px}
+</style>
+
+{% if conteudo and conteudo.caminho %}
+<script>
+(function(){
+  const wrap = document.querySelector('.pdf-wrap[data-topico-id="{{ topico.id }}"]');
+  if (!wrap) return;
+
+  const pdfUrl = "{{ url_for('static', filename=conteudo.caminho) }}";
+  const saveUrl = "/topico/{{ topico.id }}/salvar";
+  const initialPct = {{ conteudo.percentual_lido or 0 }};
+  const canvas = document.getElementById('pdfCanvas');
+  const canvasWrap = document.getElementById('pdfCanvasWrap');
+  const loading = document.getElementById('pdfLoading');
+  const fallbackFrame = document.getElementById('pdfFallbackFrame');
+  const pageNumEl = document.getElementById('pdfPageNum');
+  const pageCountEl = document.getElementById('pdfPageCount');
+  const progressEl = document.getElementById('pdfProgress');
+  const badge = document.getElementById('pdfSaveBadge');
+  const prevBtn = document.getElementById('pdfPrev');
+  const nextBtn = document.getElementById('pdfNext');
+
+  let pdfDoc = null;
+  let pageNum = 1;
+  let rendering = false;
+  let pendingPage = null;
+  let saveTimer = null;
+  const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  function setBadge(text, cls) {
+    badge.textContent = text;
+    badge.className = 'pdf-save-badge ' + (cls || '');
+  }
+
+  function progressForPage() {
+    if (!pdfDoc || !pdfDoc.numPages) return 0;
+    return Math.max(0, Math.min(100, Math.round((pageNum / pdfDoc.numPages) * 100)));
+  }
+
+  function saveProgress() {
+    const pct = progressForPage();
+    setBadge('Salvando...', 'saving');
+    fetch(saveUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ percentual: pct })
+    })
+    .then(r => r.json())
+    .then(d => setBadge(d.ok ? 'Salvo' : 'Erro', d.ok ? 'saved' : 'error'))
+    .catch(() => setBadge('Erro', 'error'));
+  }
+
+  function queueSave() {
+    progressEl.textContent = progressForPage() + '%';
+    setBadge('Editando...', 'saving');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveProgress, 700);
+  }
+
+  function renderPage(num) {
+    rendering = true;
+    pdfDoc.getPage(num).then(page => {
+      const baseViewport = page.getViewport({ scale: 1 });
+      const available = Math.max(320, canvasWrap.clientWidth - 44);
+      const scale = Math.min(2.2, Math.max(0.7, available / baseViewport.width));
+      const viewport = page.getViewport({ scale });
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      loading.hidden = true;
+
+      return page.render({ canvasContext: ctx, viewport }).promise;
+    }).then(() => {
+      rendering = false;
+      pageNumEl.textContent = pageNum;
+      prevBtn.disabled = pageNum <= 1;
+      nextBtn.disabled = pageNum >= pdfDoc.numPages;
+      queueSave();
+      if (pendingPage !== null) {
+        const next = pendingPage;
+        pendingPage = null;
+        renderPage(next);
+      }
+    }).catch(() => {
+      mostrarFallback();
+    });
+  }
+
+  function goToPage(num) {
+    if (!pdfDoc) return;
+    num = Math.max(1, Math.min(pdfDoc.numPages, num));
+    if (num === pageNum) return;
+    pageNum = num;
+    if (rendering) pendingPage = num;
+    else renderPage(num);
+  }
+
+  prevBtn.addEventListener('click', () => goToPage(pageNum - 1));
+  nextBtn.addEventListener('click', () => goToPage(pageNum + 1));
+  canvasWrap.addEventListener('wheel', e => {
+    if (Math.abs(e.deltaY) < 20) return;
+    e.preventDefault();
+    goToPage(pageNum + (e.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
+  wrap.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') goToPage(pageNum - 1);
+    if (e.key === 'ArrowRight') goToPage(pageNum + 1);
+  });
+  wrap.tabIndex = 0;
+
+  function carregarPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = PDFJS_URL;
+      s.onload = () => window.pdfjsLib ? resolve() : reject();
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  function mostrarFallback() {
+    canvas.hidden = true;
+    fallbackFrame.hidden = false;
+    canvasWrap.style.display = 'block';
+    canvasWrap.style.padding = '0';
+    loading.hidden = true;
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    setBadge('Leitor nativo', '');
+  }
+
+  carregarPdfJs().then(() => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+    return pdfjsLib.getDocument(pdfUrl).promise;
+  }).then(doc => {
+    pdfDoc = doc;
+    pageCountEl.textContent = doc.numPages;
+    pageNum = initialPct > 0 ? Math.max(1, Math.ceil((initialPct / 100) * doc.numPages)) : 1;
+    renderPage(pageNum);
+  }).catch(() => {
+    mostrarFallback();
+  });
+}());
+</script>
+{% endif %}

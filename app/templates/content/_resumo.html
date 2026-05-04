@@ -1,0 +1,419 @@
+<div class="rp">
+
+  <!-- ── Cabeçalho ── -->
+  <div class="rp-hdr">
+    <div class="rp-hdr-left">
+      <span class="rp-hdr-icon">📊</span>
+      <h1 class="rp-hdr-title">Painel</h1>
+    </div>
+
+    <div class="rp-hdr-center">
+      <div class="rp-datefilter">
+        <span class="rp-df-label">Período</span>
+        <input type="date" class="rp-df-input" id="filtroDE"  value="{{ de.isoformat() }}">
+        <span class="rp-df-sep">–</span>
+        <input type="date" class="rp-df-input" id="filtroATE" value="{{ ate.isoformat() }}">
+      </div>
+    </div>
+
+    <div class="rp-hdr-right">
+      <label class="rp-toggle" title="Incluir última coluna do kanban e tarefas concluídas">
+        <input type="checkbox" id="filtroConc">
+        <span class="rp-toggle-knob"></span>
+        <span>Exibir concluídos</span>
+      </label>
+      <button class="rp-btn-pdf" id="rpExportPDF" title="Exportar como PDF">⬇ PDF</button>
+      <button class="rp-refresh" id="rpRefresh">↺ Atualizar</button>
+    </div>
+  </div>
+
+  <!-- ── KPIs ── -->
+  <div class="rp-kpis">
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#eff6ff;color:#2563eb">🃏</div>
+      <div class="kpi-body">
+        <span class="kpi-val">{{ total_cartoes }}</span>
+        <span class="kpi-lbl">cartões no kanban</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#f0fdf4;color:#16a34a">📋</div>
+      <div class="kpi-body">
+        <span class="kpi-val">{{ concluidas_periodo }}<small>/{{ tarefas_periodo|length }}</small></span>
+        <span class="kpi-lbl">concluídas no período</span>
+      </div>
+    </div>
+    <div class="kpi {% if atrasadas > 0 %}kpi-warn{% endif %}">
+      <div class="kpi-icon" style="background:{% if atrasadas > 0 %}#fef2f2;color:#ef4444{% else %}#f8fafc;color:#94a3b8{% endif %}">⚠️</div>
+      <div class="kpi-body">
+        <span class="kpi-val">{{ atrasadas }}</span>
+        <span class="kpi-lbl">tarefas atrasadas</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#fdf4ff;color:#7c3aed">📁</div>
+      <div class="kpi-body">
+        <span class="kpi-val">{{ total_docs }}</span>
+        <span class="kpi-lbl">documentos na biblioteca</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Gráficos principais ── -->
+  <div class="rp-row">
+
+    <!-- Kanban por etapa -->
+    <section class="rp-card rp-card-lg">
+      <h2 class="rp-sec">Kanban por Etapa</h2>
+      {% if kanban_cols %}
+        <div class="bars">
+          {% for col in kanban_cols %}
+          <div class="bar-row" data-concluido="{{ 'true' if col.is_last else 'false' }}" title="Duplo clique para abrir o Kanban">
+            <span class="bar-lbl">{{ col.nome }}</span>
+            <div class="bar-track">
+              <div class="bar-fill"
+                   data-w="{{ col.pct }}"
+                   style="background:{{ col.cor }}">
+                {% if col.total > 0 %}
+                <span class="bar-val">{{ col.total }}</span>
+                {% endif %}
+              </div>
+            </div>
+            {% if col.total == 0 %}
+            <span class="bar-zero">0</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="rp-empty">Nenhum quadro kanban criado ainda.</p>
+      {% endif %}
+    </section>
+
+    <!-- Prioridades -->
+    <section class="rp-card">
+      <h2 class="rp-sec">Prioridades dos Cartões</h2>
+      {% if total_cartoes > 0 %}
+        <div class="prio-stack">
+          {% if prio.alta  > 0 %}<div class="prio-seg" data-w="{{ (prio.alta  / prio_total * 100)|int }}" style="background:#ef4444" title="Alta: {{ prio.alta }}"></div>{% endif %}
+          {% if prio.media > 0 %}<div class="prio-seg" data-w="{{ (prio.media / prio_total * 100)|int }}" style="background:#f59e0b" title="Média: {{ prio.media }}"></div>{% endif %}
+          {% if prio.baixa > 0 %}<div class="prio-seg" data-w="{{ (prio.baixa / prio_total * 100)|int }}" style="background:#22c55e" title="Baixa: {{ prio.baixa }}"></div>{% endif %}
+        </div>
+        <div class="prio-bars">
+          {% for nome, val, cor in [('Alta', prio.alta, '#ef4444'), ('Média', prio.media, '#f59e0b'), ('Baixa', prio.baixa, '#22c55e')] %}
+          <div class="prio-row">
+            <span class="prio-dot" style="background:{{ cor }}"></span>
+            <span class="prio-nome">{{ nome }}</span>
+            <div class="prio-track">
+              <div class="prio-fill" data-w="{{ (val / prio_total * 100)|int }}" style="background:{{ cor }}"></div>
+            </div>
+            <span class="prio-n">{{ val }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="rp-empty">Nenhum cartão criado ainda.</p>
+      {% endif %}
+    </section>
+
+  </div>
+
+  <!-- ── Linha inferior ── -->
+  <div class="rp-row">
+
+    <!-- Tarefas no período -->
+    <section class="rp-card">
+      <h2 class="rp-sec">
+        {% if de == ate %}Tarefas do Dia{% else %}Tarefas no Período{% endif %}
+        {% if tarefas_periodo %}
+        <span class="rp-badge">{{ concluidas_periodo }}/{{ tarefas_periodo|length }}</span>
+        {% endif %}
+      </h2>
+      {% if tarefas_periodo %}
+        {% set pct = (concluidas_periodo / tarefas_periodo|length * 100)|int %}
+        <div class="prog-track">
+          <div class="prog-fill" data-w="{{ pct }}" style="background:#22c55e"></div>
+        </div>
+        <ul class="task-list">
+          {% for t in tarefas_periodo %}
+          <li class="task-item {% if t.concluida %}task-done{% endif %}" data-concluida="{{ 'true' if t.concluida else 'false' }}" title="Duplo clique para abrir Tarefas">
+            <span class="task-chk">{% if t.concluida %}✓{% else %}○{% endif %}</span>
+            <div class="task-body">
+              <span class="task-desc">{{ t.descricao }}</span>
+              {% if t.solicitante %}<span class="task-sol">{{ t.solicitante }}</span>{% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="rp-empty">Nenhuma tarefa no período selecionado.</p>
+      {% endif %}
+    </section>
+
+    <!-- Atividade no período -->
+    <section class="rp-card">
+      <h2 class="rp-sec">
+        Atividade
+        <span class="rp-sub">
+          {% if de == ate %}{{ de.strftime('%d/%m/%Y') }}{% else %}{{ de.strftime('%d/%m') }} – {{ ate.strftime('%d/%m') }}{% endif %}
+        </span>
+      </h2>
+      {% if historico %}
+        <ul class="act-list">
+          {% for h in historico %}
+          <li class="act-item">
+            <span class="act-dot"></span>
+            <div class="act-body">
+              <span class="act-titulo">{{ h.titulo }}</span>
+              <span class="act-col">→ {{ h.coluna }}</span>
+            </div>
+            <span class="act-data">{{ h.data.strftime('%d/%m %H:%M') }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="rp-empty">Sem movimentações no período selecionado.</p>
+      {% endif %}
+    </section>
+
+  </div>
+
+  <!-- ── Documentos por tipo ── -->
+  {% if docs_info %}
+  <section class="rp-card rp-card-full">
+    <h2 class="rp-sec">Biblioteca por Tipo</h2>
+    <div class="docs-grid">
+      {% for d in docs_info %}
+      <div class="doc-chip" style="--tc:{{ d.cor }}">
+        <span class="doc-chip-icon">{{ d.icone }}</span>
+        <span class="doc-chip-count">{{ d.count }}</span>
+        <span class="doc-chip-lbl">{{ d.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+
+<style>
+/* ── Página ───────────────────────────── */
+.rp{height:100%;overflow-y:auto;background:#f6f8fb;padding:24px;box-sizing:border-box}
+
+/* ── Header ──────────────────────────── */
+.rp-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.rp-hdr-left{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.rp-hdr-center{flex:1;display:flex;justify-content:center;padding:0 12px}
+.rp-hdr-right{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+.rp-hdr-icon{font-size:22px}
+.rp-hdr-title{font-size:22px;font-weight:700;color:#0f172a;margin:0}
+
+/* ── Filtro de datas ─────────────────── */
+.rp-datefilter{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #dbe4ef;border-radius:8px;padding:6px 12px}
+.rp-df-label{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.4px;white-space:nowrap}
+.rp-df-input{border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-family:inherit;color:#374151;background:#f8fafc;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.rp-df-input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1);background:#fff}
+.rp-df-sep{color:#cbd5e1;font-size:14px;font-weight:600}
+
+/* ── Botões do header ────────────────── */
+.rp-refresh{padding:6px 14px;border:1px solid #dbe4ef;border-radius:6px;background:#fff;color:#475569;font-size:13px;cursor:pointer;transition:background .12s,color .12s}
+.rp-refresh:hover{background:#f1f5f9;color:#1e293b}
+.rp-btn-pdf{padding:6px 14px;border:1px solid #dbe4ef;border-radius:6px;background:#fff;color:#2563eb;font-size:13px;cursor:pointer;font-weight:500;transition:background .12s,border-color .12s}
+.rp-btn-pdf:hover{background:#eff6ff;border-color:#bfdbfe}
+
+/* Toggle */
+.rp-toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#475569;user-select:none;white-space:nowrap}
+.rp-toggle input{position:absolute;opacity:0;width:0;height:0}
+.rp-toggle-knob{width:34px;height:19px;border-radius:10px;background:#dbe4ef;position:relative;flex-shrink:0;transition:background .2s}
+.rp-toggle-knob::after{content:'';position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s}
+.rp-toggle input:checked ~ .rp-toggle-knob{background:#2563eb}
+.rp-toggle input:checked ~ .rp-toggle-knob::after{left:17px}
+
+/* ── KPIs ────────────────────────────── */
+.rp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #dbe4ef;border-radius:10px;padding:14px 16px}
+.kpi-warn{border-color:#fca5a5;background:#fff9f9}
+.kpi-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.kpi-body{display:flex;flex-direction:column;min-width:0}
+.kpi-val{font-size:22px;font-weight:700;color:#0f172a;line-height:1}
+.kpi-val small{font-size:14px;font-weight:400;color:#64748b}
+.kpi-lbl{font-size:12px;color:#64748b;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi-warn .kpi-val{color:#ef4444}
+
+/* ── Layout rows ─────────────────────── */
+.rp-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+
+/* ── Cards ───────────────────────────── */
+.rp-card{background:#fff;border:1px solid #dbe4ef;border-radius:10px;padding:18px 20px}
+.rp-card-lg{grid-column:span 1}
+.rp-card-full{width:100%;box-sizing:border-box;margin-bottom:12px}
+.rp-sec{font-size:13px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:0.4px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+.rp-sub{font-size:11px;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0}
+.rp-badge{font-size:11px;font-weight:600;background:#f1f5f9;color:#475569;border-radius:20px;padding:2px 8px;text-transform:none;letter-spacing:0}
+.rp-empty{color:#94a3b8;font-size:13px;margin:0}
+
+/* ── Gráfico de barras (kanban) ──────── */
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar-row{display:grid;grid-template-columns:130px 1fr auto;align-items:center;gap:10px;border-radius:6px;padding:3px 4px;cursor:pointer;transition:background .12s}
+.bar-row:hover{background:#f1f5f9}
+.bar-row:hover .bar-lbl{color:#2563eb}
+.bar-lbl{font-size:12.5px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;transition:color .12s}
+.bar-track{height:22px;background:#f1f5f9;border-radius:5px;overflow:hidden;position:relative}
+.bar-fill{height:100%;width:0;border-radius:5px;display:flex;align-items:center;transition:width .6s cubic-bezier(.16,1,.3,1);position:relative;min-width:0}
+.bar-val{font-size:11px;font-weight:600;color:#fff;padding:0 7px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.2)}
+.bar-zero{font-size:12px;color:#cbd5e1;min-width:20px;text-align:right}
+
+/* ── Prioridades ─────────────────────── */
+.prio-stack{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:16px;gap:2px}
+.prio-seg{height:100%;width:0;border-radius:3px;transition:width .6s cubic-bezier(.16,1,.3,1)}
+.prio-bars{display:flex;flex-direction:column;gap:10px}
+.prio-row{display:grid;grid-template-columns:12px 50px 1fr 30px;align-items:center;gap:8px}
+.prio-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.prio-nome{font-size:12.5px;color:#475569}
+.prio-track{height:14px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+.prio-fill{height:100%;width:0;border-radius:4px;transition:width .6s cubic-bezier(.16,1,.3,1)}
+.prio-n{font-size:12px;font-weight:600;color:#374151;text-align:right}
+
+/* ── Progresso de tarefas ────────────── */
+.prog-track{height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-bottom:14px}
+.prog-fill{height:100%;width:0;border-radius:3px;transition:width .6s cubic-bezier(.16,1,.3,1)}
+
+/* ── Lista de tarefas ────────────────── */
+.task-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.task-item{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:6px;background:#f8fafc;font-size:13px;cursor:pointer;transition:background .12s}
+.task-item:hover{background:#e8f0fe}
+.task-done{opacity:0.55}
+.task-done .task-desc{text-decoration:line-through;color:#94a3b8}
+.task-chk{flex-shrink:0;width:16px;color:#22c55e;font-size:12px;margin-top:1px}
+.task-done .task-chk{color:#94a3b8}
+.task-body{display:flex;flex-direction:column;min-width:0}
+.task-desc{color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-sol{font-size:11px;color:#94a3b8;margin-top:2px}
+
+/* ── Atividade recente ───────────────── */
+.act-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;max-height:280px;overflow-y:auto}
+.act-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9}
+.act-item:last-child{border-bottom:none}
+.act-dot{width:7px;height:7px;border-radius:50%;background:#2563eb;flex-shrink:0}
+.act-body{flex:1;min-width:0}
+.act-titulo{display:block;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act-col{font-size:11px;color:#64748b}
+.act-data{font-size:11px;color:#94a3b8;flex-shrink:0;white-space:nowrap}
+
+/* ── Docs por tipo ───────────────────── */
+.docs-grid{display:flex;flex-wrap:wrap;gap:10px}
+.doc-chip{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;border:1.5px solid color-mix(in srgb,var(--tc) 20%,#e2e8f0);background:color-mix(in srgb,var(--tc) 6%,#fff)}
+.doc-chip-icon{font-size:16px}
+.doc-chip-count{font-size:20px;font-weight:700;color:var(--tc)}
+.doc-chip-lbl{font-size:12px;color:#475569}
+
+/* ── Responsivo ──────────────────────── */
+@media(max-width:1100px){
+  .rp-hdr-center{order:3;flex-basis:100%;justify-content:flex-start}
+}
+@media(max-width:900px){
+  .rp-kpis{grid-template-columns:repeat(2,1fr)}
+  .rp-row{grid-template-columns:1fr}
+  .bar-row{grid-template-columns:100px 1fr auto}
+}
+@media(max-width:560px){
+  .rp{padding:14px}
+  .rp-kpis{grid-template-columns:1fr 1fr}
+  .rp-hdr-right{gap:6px}
+}
+
+/* ── Impressão / Exportar PDF ────────── */
+@media print {
+  .navbar,.workspace-sidebar,#tabBar,.tab-bar,.rp-hdr-right,#ctxMenu,#rootDropZone{display:none!important}
+  body,html{height:auto!important;overflow:visible!important}
+  .workspace-shell{display:block!important;min-height:auto!important}
+  .workspace-main{overflow:visible!important;height:auto!important;display:block!important}
+  .tab-contents{overflow:visible!important;height:auto!important;position:static!important;display:block!important}
+  .tab-pane{position:static!important;overflow:visible!important;height:auto!important;display:block!important}
+  .rp{overflow:visible!important;height:auto!important;padding:16px!important;background:#fff!important}
+  .rp-hdr{margin-bottom:12px!important}
+  .rp-hdr-center{order:unset}
+  .rp-card,.rp-kpis,.rp-row{break-inside:avoid;page-break-inside:avoid}
+  .task-list,.act-list{max-height:none!important;overflow:visible!important}
+}
+</style>
+
+<script>
+(function () {
+  /* ── Helpers de URL ── */
+  function getUrl() {
+    const de  = document.getElementById('filtroDE').value;
+    const ate = document.getElementById('filtroATE').value;
+    const p   = new URLSearchParams();
+    if (de)  p.set('de',  de);
+    if (ate) p.set('ate', ate);
+    return '/resumo' + (p.toString() ? '?' + p : '');
+  }
+
+  function recarregar() {
+    const pane = document.getElementById('filtroDE').closest('.tab-pane');
+    const url  = getUrl();
+    if (!pane) { location.href = url; return; }
+    pane.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:14px;">Atualizando…</div>';
+    fetch(url, { credentials: 'include' })
+      .then(r => r.text())
+      .then(html => {
+        pane.innerHTML = html;
+        pane.querySelectorAll('script').forEach(old => {
+          const s = document.createElement('script');
+          s.textContent = old.textContent;
+          old.replaceWith(s);
+        });
+      });
+  }
+
+  /* ── Anima barras ao carregar ── */
+  requestAnimationFrame(() => {
+    document.querySelectorAll('[data-w]').forEach((el, i) => {
+      const w = el.dataset.w;
+      setTimeout(() => { el.style.width = w + '%'; }, i * 40);
+    });
+  });
+
+  /* ── Filtro "Exibir concluídos" ── */
+  const filtroConc = document.getElementById('filtroConc');
+  function aplicarFiltro() {
+    const show = filtroConc.checked;
+    document.querySelectorAll('[data-concluido="true"]').forEach(el => {
+      el.style.display = show ? '' : 'none';
+    });
+    document.querySelectorAll('[data-concluida="true"]').forEach(el => {
+      el.style.display = show ? '' : 'none';
+    });
+  }
+  filtroConc.addEventListener('change', aplicarFiltro);
+  aplicarFiltro();
+
+  /* ── Duplo clique: kanban → /kanban ── */
+  document.querySelectorAll('.bar-row').forEach(row => {
+    row.addEventListener('dblclick', () => { window.location.href = '/kanban'; });
+  });
+
+  /* ── Duplo clique: tarefas → /tarefas ── */
+  document.querySelectorAll('.task-item').forEach(item => {
+    item.addEventListener('dblclick', () => { window.location.href = '/tarefas'; });
+  });
+
+  /* ── Botão Atualizar ── */
+  document.getElementById('rpRefresh').addEventListener('click', recarregar);
+
+  /* ── Auto-refresh ao mudar o período (debounce 300ms) ── */
+  let _debounce;
+  ['filtroDE', 'filtroATE'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => {
+      clearTimeout(_debounce);
+      _debounce = setTimeout(recarregar, 300);
+    });
+  });
+
+  /* ── Exportar PDF ── */
+  document.getElementById('rpExportPDF').addEventListener('click', () => {
+    window.print();
+  });
+}());
+</script>

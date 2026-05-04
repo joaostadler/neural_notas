@@ -1,0 +1,77 @@
+<div class="doc-wrap">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge">🔷</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <span class="save-badge" id="saveBadge">—</span>
+  </header>
+
+  <div class="diag-body">
+    <textarea class="diag-area" id="diagArea"
+              data-id="{{ topico.id }}"
+              spellcheck="false"
+              placeholder="Descreva seu diagrama aqui...&#10;&#10;Ex.:&#10;A → B → C&#10;B → D">{% if conteudo and conteudo.dados_json %}{{ conteudo.dados_json }}{% endif %}</textarea>
+  </div>
+
+</div>
+
+<style>
+.doc-wrap{display:flex;flex-direction:column;height:100%;background:#fff;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:14px;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.save-badge{font-size:12px;color:#94a3b8;transition:color 0.2s}
+.save-badge.saving{color:#f59e0b}
+.save-badge.saved{color:#22c55e}
+.save-badge.error{color:#ef4444}
+.diag-body{flex:1;display:flex;min-height:0;padding:24px}
+.diag-area{flex:1;resize:none;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;font-family:'Fira Code','Courier New',monospace;font-size:14px;line-height:1.7;color:#1e293b;background:#fafbfc;outline:none;transition:border-color 0.2s}
+.diag-area:focus{border-color:#93c5fd;background:#fff}
+</style>
+
+<script>
+(function(){
+  const area   = document.getElementById('diagArea');
+  const badge  = document.getElementById('saveBadge');
+  if (!area) return;
+
+  const saveUrl = '/topico/' + area.dataset.id + '/salvar';
+  let timer;
+
+  function salvar() {
+    badge.textContent = 'Salvando…';
+    badge.className   = 'save-badge saving';
+    fetch(saveUrl, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ conteudo: area.value })
+    })
+    .then(r => r.json())
+    .then(d => {
+      badge.textContent = d.ok ? 'Salvo ✓' : 'Erro';
+      badge.className   = d.ok ? 'save-badge saved' : 'save-badge error';
+    })
+    .catch(() => { badge.textContent = 'Erro'; badge.className = 'save-badge error'; });
+  }
+
+  area.addEventListener('input', () => {
+    badge.textContent = 'Editando…';
+    badge.className   = 'save-badge saving';
+    clearTimeout(timer);
+    timer = setTimeout(salvar, 1500);
+  });
+
+  area.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      clearTimeout(timer);
+      salvar();
+    }
+  });
+
+  area.focus();
+}());
+</script>

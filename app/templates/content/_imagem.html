@@ -1,0 +1,72 @@
+<div class="img-wrap">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge">🖼</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <div class="zoom-controls">
+      <button id="zOut" title="Diminuir">−</button>
+      <span id="zLabel">100%</span>
+      <button id="zIn"  title="Aumentar">+</button>
+      <button id="zFit" title="Ajustar à janela">⊡ Ajustar</button>
+    </div>
+  </header>
+
+  <div class="img-viewer" id="imgViewer">
+    {% if conteudo and conteudo.caminho %}
+      <div class="img-stage" id="imgStage">
+        <img src="{{ url_for('static', filename=conteudo.caminho) }}"
+             id="viewImg" alt="{{ topico.nome }}" draggable="false">
+      </div>
+    {% else %}
+      <div class="no-content">Imagem não encontrada.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.img-wrap{display:flex;flex-direction:column;height:100%;background:#f1f5f9;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px;background:#fff}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:14px;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zoom-controls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.zoom-controls button{padding:4px 10px;border:1px solid #dbe4ef;border-radius:5px;cursor:pointer;background:#fff;font-size:13px;color:#374151;transition:all 0.15s}
+.zoom-controls button:hover{background:#f1f5f9;border-color:#94a3b8}
+#zLabel{font-size:13px;color:#64748b;min-width:44px;text-align:center}
+.img-viewer{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;min-height:0;padding:24px}
+.img-stage{display:inline-flex;transform-origin:center;transition:transform 0.2s}
+#viewImg{max-width:100%;max-height:calc(100vh - 160px);object-fit:contain;display:block;box-shadow:0 4px 24px rgba(0,0,0,0.15);border-radius:4px}
+.no-content{color:#94a3b8;font-size:15px}
+</style>
+
+<script>
+(function(){
+  const img   = document.getElementById('viewImg');
+  const stage = document.getElementById('imgStage');
+  const label = document.getElementById('zLabel');
+  if (!img) return;
+
+  let zoom = 1;
+
+  function setZoom(z) {
+    zoom = Math.max(0.1, Math.min(8, z));
+    stage.style.transform = `scale(${zoom})`;
+    label.textContent = Math.round(zoom * 100) + '%';
+  }
+
+  document.getElementById('zIn').addEventListener('click',  () => setZoom(zoom + 0.25));
+  document.getElementById('zOut').addEventListener('click', () => setZoom(zoom - 0.25));
+  document.getElementById('zFit').addEventListener('click', () => setZoom(1));
+
+  /* Zoom com scroll do mouse */
+  document.getElementById('imgViewer').addEventListener('wheel', e => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      setZoom(zoom + (e.deltaY < 0 ? 0.1 : -0.1));
+    }
+  }, { passive: false });
+}());
+</script>

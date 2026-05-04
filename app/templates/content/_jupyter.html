@@ -1,0 +1,124 @@
+<div class="jup-wrap">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge">⚗️</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <div class="jup-actions">
+      <button id="addCodigo"   title="Adicionar célula de código">+ Código</button>
+      <button id="addMarkdown" title="Adicionar célula markdown">+ Texto</button>
+      <span class="save-badge" id="saveBadge">—</span>
+    </div>
+  </header>
+
+  <div class="jup-scroll" id="jupScroll">
+    {% if conteudo %}
+      {% for cel in conteudo %}
+        <div class="cel" data-id="{{ cel.id }}" data-tipo="{{ cel.tipo }}">
+          <div class="cel-hdr">
+            <span class="cel-tipo {{ cel.tipo }}">{{ 'Código' if cel.tipo == 'codigo' else 'Texto' }}</span>
+            <button class="cel-del" title="Remover célula">✕</button>
+          </div>
+          <textarea class="cel-area" spellcheck="false">{{ cel.conteudo }}</textarea>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.jup-wrap{display:flex;flex-direction:column;height:100%;background:#f8fafc;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px;background:#fff}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:14px;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jup-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.jup-actions button{padding:4px 10px;border:1px solid #dbe4ef;border-radius:5px;cursor:pointer;background:#fff;font-size:12px;color:#374151;transition:all 0.15s}
+.jup-actions button:hover{background:#e2e8f0}
+.save-badge{font-size:12px;color:#94a3b8;transition:color 0.2s}
+.save-badge.saving{color:#f59e0b}
+.save-badge.saved{color:#22c55e}
+.save-badge.error{color:#ef4444}
+.jup-scroll{flex:1;overflow-y:auto;padding:20px 32px;display:flex;flex-direction:column;gap:12px;min-height:0}
+.cel{background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;transition:border-color 0.15s}
+.cel:focus-within{border-color:#93c5fd}
+.cel-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+.cel-tipo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.cel-tipo.codigo{color:#7c3aed}
+.cel-tipo.markdown{color:#0891b2}
+.cel-del{background:transparent;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0 4px;line-height:1;transition:color 0.15s}
+.cel-del:hover{color:#ef4444}
+.cel-area{display:block;width:100%;min-height:80px;padding:12px 16px;border:none;resize:vertical;font-family:'Fira Code','Courier New',monospace;font-size:13px;line-height:1.6;color:#1e293b;background:#fff;outline:none}
+</style>
+
+<script>
+(function(){
+  const saveUrl  = '/topico/{{ topico.id }}/salvar';
+  const badge    = document.getElementById('saveBadge');
+  const scroll   = document.getElementById('jupScroll');
+
+  let timer;
+
+  function agendarSalvar() {
+    badge.textContent = 'Editando…';
+    badge.className   = 'save-badge saving';
+    clearTimeout(timer);
+    timer = setTimeout(salvar, 1500);
+  }
+
+  function salvar() {
+    const celulas = [];
+    scroll.querySelectorAll('.cel').forEach(cel => {
+      celulas.push({
+        id:      parseInt(cel.dataset.id, 10),
+        conteudo: cel.querySelector('.cel-area').value,
+      });
+    });
+    badge.textContent = 'Salvando…';
+    badge.className   = 'save-badge saving';
+    fetch(saveUrl, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ celulas })
+    })
+    .then(r => r.json())
+    .then(d => {
+      badge.textContent = d.ok ? 'Salvo ✓' : 'Erro';
+      badge.className   = d.ok ? 'save-badge saved' : 'save-badge error';
+    })
+    .catch(() => { badge.textContent = 'Erro'; badge.className = 'save-badge error'; });
+  }
+
+  /* Escuta inputs em células existentes */
+  scroll.addEventListener('input', e => {
+    if (e.target.classList.contains('cel-area')) agendarSalvar();
+  });
+
+  /* Remover célula */
+  scroll.addEventListener('click', e => {
+    const btn = e.target.closest('.cel-del');
+    if (btn) { btn.closest('.cel').remove(); agendarSalvar(); }
+  });
+
+  /* Adicionar célula */
+  function adicionarCelula(tipo) {
+    const div = document.createElement('div');
+    div.className = 'cel';
+    div.dataset.id   = 'new_' + Date.now();
+    div.dataset.tipo = tipo;
+    div.innerHTML = `
+      <div class="cel-hdr">
+        <span class="cel-tipo ${tipo}">${tipo === 'codigo' ? 'Código' : 'Texto'}</span>
+        <button class="cel-del" title="Remover célula">✕</button>
+      </div>
+      <textarea class="cel-area" spellcheck="false"></textarea>`;
+    scroll.appendChild(div);
+    div.querySelector('.cel-area').focus();
+  }
+
+  document.getElementById('addCodigo').addEventListener('click',   () => adicionarCelula('codigo'));
+  document.getElementById('addMarkdown').addEventListener('click', () => adicionarCelula('markdown'));
+}());
+</script>
