@@ -101,7 +101,7 @@
         </div>
         <div class="prio-bars">
           {% for nome, val, cor in [('Alta', prio.alta, '#ef4444'), ('Média', prio.media, '#f59e0b'), ('Baixa', prio.baixa, '#22c55e')] %}
-          <div class="prio-row">
+          <div class="prio-row" title="Duplo clique para abrir o Kanban">
             <span class="prio-dot" style="background:{{ cor }}"></span>
             <span class="prio-nome">{{ nome }}</span>
             <div class="prio-track">
@@ -178,21 +178,6 @@
 
   </div>
 
-  <!-- ── Documentos por tipo ── -->
-  {% if docs_info %}
-  <section class="rp-card rp-card-full">
-    <h2 class="rp-sec">Biblioteca por Tipo</h2>
-    <div class="docs-grid">
-      {% for d in docs_info %}
-      <div class="doc-chip" style="--tc:{{ d.cor }}">
-        <span class="doc-chip-icon">{{ d.icone }}</span>
-        <span class="doc-chip-count">{{ d.count }}</span>
-        <span class="doc-chip-lbl">{{ d.label }}</span>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
 
 </div>
 
@@ -267,7 +252,9 @@
 .prio-stack{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:16px;gap:2px}
 .prio-seg{height:100%;width:0;border-radius:3px;transition:width .6s cubic-bezier(.16,1,.3,1)}
 .prio-bars{display:flex;flex-direction:column;gap:10px}
-.prio-row{display:grid;grid-template-columns:12px 50px 1fr 30px;align-items:center;gap:8px}
+.prio-row{display:grid;grid-template-columns:12px 50px 1fr 30px;align-items:center;gap:8px;border-radius:6px;padding:3px 4px;cursor:pointer;transition:background .12s}
+.prio-row:hover{background:#f1f5f9}
+.prio-row:hover .prio-nome{color:#2563eb}
 .prio-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .prio-nome{font-size:12.5px;color:#475569}
 .prio-track{height:14px;background:#f1f5f9;border-radius:4px;overflow:hidden}
@@ -391,6 +378,11 @@
 
   /* ── Duplo clique: kanban → /kanban ── */
   document.querySelectorAll('.bar-row').forEach(row => {
+    row.addEventListener('dblclick', () => { window.location.href = '/kanban'; });
+  });
+
+  /* ── Duplo clique: prioridades → /kanban ── */
+  document.querySelectorAll('.prio-row').forEach(row => {
     row.addEventListener('dblclick', () => { window.location.href = '/kanban'; });
   });
 
