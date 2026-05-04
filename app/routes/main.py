@@ -139,10 +139,14 @@ def dashboard():
         .all()
     )
 
-    tarefas_recentes = (
-        TarefaFacil.query.filter_by(id_usuario=current_user.id, concluida=False)
-        .order_by(desc(TarefaFacil.data_tarefa))
-        .limit(5)
+    tarefas_do_dia = (
+        TarefaFacil.query
+        .filter(
+            TarefaFacil.id_usuario == current_user.id,
+            TarefaFacil.data_tarefa == date.today(),
+        )
+        .order_by(TarefaFacil.concluida.asc(), TarefaFacil.criado_em.asc())
+        .limit(15)
         .all()
     )
 
@@ -150,7 +154,7 @@ def dashboard():
         'main/dashboard.html',
         topicos=topicos,
         tipos_documento=TIPOS_DOCUMENTO,
-        tarefas_recentes=tarefas_recentes,
+        tarefas_do_dia=tarefas_do_dia,
     )
 
 
@@ -480,9 +484,9 @@ def resumo():
     de_str  = request.args.get('de',  '').strip()
     ate_str = request.args.get('ate', '').strip()
     try:
-        de = date.fromisoformat(de_str) if de_str else hoje
+        de = date.fromisoformat(de_str) if de_str else date(hoje.year, hoje.month, 1)
     except ValueError:
-        de = hoje
+        de = date(hoje.year, hoje.month, 1)
     try:
         ate = date.fromisoformat(ate_str) if ate_str else hoje
     except ValueError:

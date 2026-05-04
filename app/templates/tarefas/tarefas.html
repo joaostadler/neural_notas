@@ -255,6 +255,39 @@
     color: var(--apagado);
     margin: -12px 0 18px;
 }
+
+@media (max-width: 640px) {
+    .tf-page {
+        height: auto;
+        min-height: calc(100vh - 48px);
+    }
+
+    .tf-header {
+        padding: 12px 14px 10px;
+        gap: 8px;
+    }
+
+    .tf-header h1 { font-size: 17px; }
+
+    .tf-filter-btn {
+        padding: 4px 9px;
+        font-size: 12px;
+    }
+
+    .tf-body {
+        padding: 0 0 16px;
+        overflow-x: auto;
+    }
+
+    /* Esconde coluna solicitante em telas pequenas */
+    .tf-col-sol, th.tf-col-sol { display: none; }
+
+    .tf-col-acoes { width: 56px; }
+
+    .tf-modal {
+        padding: 20px 16px;
+    }
+}
 </style>
 {% endblock %}
 
