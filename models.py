@@ -281,6 +281,7 @@ class TarefaFacil(db.Model):
     descricao = db.Column(db.Text, nullable=False)
     concluida = db.Column(db.Boolean, default=False)
     concluida_em = db.Column(db.DateTime, nullable=True)
+    observacao_conclusao = db.Column(db.Text, nullable=True)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
