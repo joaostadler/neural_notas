@@ -9,7 +9,9 @@ bp_kanban = Blueprint('kanban', __name__, url_prefix='/kanban')
 
 COLUNAS_PADRAO = [
     {'nome': 'A Fazer',      'cor': '#64748b'},
+    {'nome': 'Aprovado',     'cor': "#501d5a"},
     {'nome': 'Em Andamento', 'cor': '#2563eb'},
+    {'nome': 'Impedimento',  'cor': "#eb2525"},
     {'nome': 'Em Revisão',   'cor': '#d97706'},
     {'nome': 'Concluído',    'cor': '#16a34a'},
 ]
