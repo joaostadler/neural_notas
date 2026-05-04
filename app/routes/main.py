@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 
 from models import (
     Caderno, CartaoKanban, CelulaJupyter, ColunaKanban,
-    Codigo, Diagrama, HistoricoEtapas, Imagem, Nota, PDF,
+    Codigo, Diagrama, HistoricoEtapas, IconeCustomizado, Imagem, Nota, PDF,
     Planilha, TarefaFacil, Topico, db,
 )
 
@@ -150,11 +150,17 @@ def dashboard():
         .all()
     )
 
+    icones_customizados = {
+        ic.tipo: f'/static/{ic.caminho}'
+        for ic in IconeCustomizado.query.filter_by(id_usuario=current_user.id).all()
+    }
+
     return render_template(
         'main/dashboard.html',
         topicos=topicos,
         tipos_documento=TIPOS_DOCUMENTO,
         tarefas_do_dia=tarefas_do_dia,
+        icones_customizados=icones_customizados,
     )
 
 
@@ -410,6 +416,93 @@ def salvar_topico(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'erro': str(e)}), 500
+
+
+_TIPOS_ICONE_VALIDOS = frozenset((
+    'nota', 'caderno', 'planilha', 'diagrama', 'jupyter',
+    'tarefa', 'imagem', 'python', 'sql', 'biblioteca', 'pdf', 'pasta',
+))
+
+
+@bp_main.route('/icones/upload/<tipo>', methods=['POST'])
+@login_required
+def upload_icone(tipo):
+    from PIL import Image
+    from io import BytesIO
+
+    if tipo not in _TIPOS_ICONE_VALIDOS:
+        return jsonify({'erro': 'Tipo inválido'}), 400
+
+    arquivo = request.files.get('icone')
+    if not arquivo or not arquivo.filename:
+        return jsonify({'erro': 'Arquivo inválido'}), 400
+
+    ext = arquivo.filename.rsplit('.', 1)[-1].lower()
+    if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+        return jsonify({'erro': 'Formato inválido'}), 400
+
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'icones', str(current_user.id))
+    os.makedirs(pasta, exist_ok=True)
+
+    caminho_abs = os.path.join(pasta, f'{tipo}.png')
+    img = Image.open(BytesIO(arquivo.read())).convert('RGBA')
+    img.thumbnail((48, 48), Image.LANCZOS)
+    result = Image.new('RGBA', (48, 48), (0, 0, 0, 0))
+    offset = ((48 - img.width) // 2, (48 - img.height) // 2)
+    result.paste(img, offset)
+    result.save(caminho_abs, 'PNG')
+
+    caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
+    ic = IconeCustomizado.query.filter_by(id_usuario=current_user.id, tipo=tipo).first()
+    if ic:
+        ic.caminho = caminho_rel
+    else:
+        db.session.add(IconeCustomizado(id_usuario=current_user.id, tipo=tipo, caminho=caminho_rel))
+    db.session.commit()
+
+    return jsonify({'ok': True, 'url': f'/static/{caminho_rel}'})
+
+
+@bp_main.route('/topico/<int:id>/upload-capa', methods=['POST'])
+@login_required
+def upload_capa_pdf(id):
+    from PIL import Image
+    from io import BytesIO as BIO
+
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'pdf' or not topico.pdfs:
+        return jsonify({'erro': 'Não encontrado'}), 404
+
+    arquivo = request.files.get('capa')
+    if not arquivo or not arquivo.filename:
+        return jsonify({'erro': 'Arquivo inválido'}), 400
+
+    ext = arquivo.filename.rsplit('.', 1)[-1].lower()
+    if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+        return jsonify({'erro': 'Formato inválido'}), 400
+
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'capas', str(current_user.id))
+    os.makedirs(pasta, exist_ok=True)
+
+    caminho_abs = os.path.join(pasta, f'{id}.jpg')
+    img = Image.open(BIO(arquivo.read())).convert('RGB')
+
+    tw, th = 200, 280
+    img_aspect = img.width / img.height
+    if img_aspect > tw / th:
+        nw = int(img.height * tw / th)
+        img = img.crop(((img.width - nw) // 2, 0, (img.width - nw) // 2 + nw, img.height))
+    else:
+        nh = int(img.width * th / tw)
+        img = img.crop((0, (img.height - nh) // 2, img.width, (img.height - nh) // 2 + nh))
+    img = img.resize((tw, th), Image.LANCZOS)
+    img.save(caminho_abs, 'JPEG', quality=85)
+
+    caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
+    topico.pdfs.capa = caminho_rel
+    db.session.commit()
+
+    return jsonify({'ok': True, 'url': f'/static/{caminho_rel}'})
 
 
 @bp_main.route('/topicos/buscar')

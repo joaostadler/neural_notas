@@ -81,7 +81,7 @@
                         <div class="kb-card-title">{{ cartao.titulo }}</div>
 
                         {% if cartao.descricao %}
-                        <div class="kb-card-desc">{{ cartao.descricao }}</div>
+                        <div class="kb-card-rich-preview">{{ cartao.descricao | safe }}</div>
                         {% endif %}
 
                         <div class="kb-card-footer">
@@ -162,7 +162,14 @@
         </div>
         <div class="form-group">
             <label>Descrição</label>
-            <textarea id="inputCartaoDescricao" rows="3" placeholder="Detalhes opcionais…"></textarea>
+            <div class="kb-editor-toolbar" id="kbEditorToolbar">
+                <button type="button" class="kb-tb-btn" id="btnTbNegrito" title="Negrito (Ctrl+B)"><b>B</b></button>
+                <button type="button" class="kb-tb-btn" id="btnTbImagem" title="Inserir imagem">🖼</button>
+                <button type="button" class="kb-tb-btn" id="btnTbTabela" title="Inserir tabela">⊞</button>
+            </div>
+            <div id="inputCartaoDescricao" class="kb-editor" contenteditable="true"
+                 data-placeholder="Descrição… suporta imagens e tabelas"></div>
+            <input type="file" id="uploadImagemKanban" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
         </div>
         <div class="form-group">
             <label>Etiquetas <small style="font-weight:400;text-transform:none">(separadas por vírgula)</small></label>
@@ -504,15 +511,106 @@
     margin-bottom: 4px;
 }
 
-.kb-card-desc {
+.kb-card-rich-preview {
     font-size: 12px;
     color: #64748b;
     line-height: 1.4;
     margin-bottom: 8px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    max-height: 120px;
     overflow: hidden;
+}
+
+.kb-card-rich-preview img {
+    max-width: 100%;
+    max-height: 80px;
+    border-radius: 3px;
+    display: block;
+    margin: 2px 0;
+    object-fit: cover;
+}
+
+.kb-card-rich-preview table {
+    border-collapse: collapse;
+    font-size: 10px;
+    width: 100%;
+    margin: 2px 0;
+}
+
+.kb-card-rich-preview td,
+.kb-card-rich-preview th {
+    border: 1px solid #e2e8f0;
+    padding: 1px 4px;
+}
+
+/* ── Editor rico do modal ─────────────────────────────────────────── */
+.kb-editor-toolbar {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #f8fafc;
+    border: 1px solid #dbe4ef;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+}
+
+.kb-tb-btn {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #64748b;
+    font-family: inherit;
+    transition: background 0.1s, color 0.1s;
+}
+
+.kb-tb-btn:hover { background: #e2e8f0; color: #1e293b; }
+
+.kb-editor {
+    min-height: 90px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 8px 12px;
+    border: 1px solid #dbe4ef;
+    border-radius: 0 0 6px 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #1e293b;
+    background: #fff;
+    outline: none;
+    word-break: break-word;
+}
+
+.kb-editor:focus { border-color: #2563eb; }
+
+.kb-editor:empty::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.kb-editor img {
+    max-width: 100%;
+    max-height: 160px;
+    border-radius: 4px;
+    display: block;
+    margin: 4px 0;
+}
+
+.kb-editor table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 6px 0;
+    font-size: 12px;
+}
+
+.kb-editor table td,
+.kb-editor table th {
+    border: 1px solid #dbe4ef;
+    padding: 4px 8px;
+    min-width: 40px;
+    vertical-align: top;
 }
 
 .kb-card-footer {
@@ -1026,7 +1124,7 @@ window.abrirNovoCartao = function(colId) {
     document.getElementById('modalCartaoTitulo').textContent   = 'Criar cartão';
     document.getElementById('btnSalvarCartao').textContent     = 'Criar';
     document.getElementById('inputCartaoTitulo').value     = '';
-    document.getElementById('inputCartaoDescricao').value  = '';
+    document.getElementById('inputCartaoDescricao').innerHTML  = '';
     document.getElementById('inputCartaoEtiquetas').value  = '';
     setPrioAtiva('baixa');
     abrirModalCartao();
@@ -1038,9 +1136,9 @@ window.abrirEditarCartao = function(cardEl) {
     document.getElementById('modalCartaoEyebrow').textContent  = 'Editar cartão';
     document.getElementById('modalCartaoTitulo').textContent   = 'Editar cartão';
     document.getElementById('btnSalvarCartao').textContent     = 'Salvar';
-    document.getElementById('inputCartaoTitulo').value     = cardEl.dataset.titulo;
-    document.getElementById('inputCartaoDescricao').value  = cardEl.dataset.descricao;
-    document.getElementById('inputCartaoEtiquetas').value  = cardEl.dataset.etiquetas;
+    document.getElementById('inputCartaoTitulo').value         = cardEl.dataset.titulo;
+    document.getElementById('inputCartaoDescricao').innerHTML  = cardEl.dataset.descricao || '';
+    document.getElementById('inputCartaoEtiquetas').value      = cardEl.dataset.etiquetas;
     setPrioAtiva(cardEl.dataset.prioridade || 'baixa');
     abrirModalCartao();
 };
@@ -1052,11 +1150,13 @@ function abrirModalCartao() {
 
 window.fecharModalCartao = function() {
     document.getElementById('modalCartao').hidden = true;
+    document.getElementById('inputCartaoDescricao').innerHTML = '';
 };
 
 window.salvarCartao = async function() {
     const titulo     = document.getElementById('inputCartaoTitulo').value.trim();
-    const descricao  = document.getElementById('inputCartaoDescricao').value.trim();
+    const editorEl   = document.getElementById('inputCartaoDescricao');
+    const descricao  = editorEl.textContent.trim() === '' ? '' : editorEl.innerHTML;
     const etiquetas  = document.getElementById('inputCartaoEtiquetas').value.trim();
     const prioridade = prioSelecionada;
 
@@ -1084,7 +1184,7 @@ function injetarCartao(colId, cartao) {
     const prioLabel = {alta: '● Alta', media: '● Média', baixa: '● Baixa'}[cartao.prioridade] || '● Baixa';
 
     const descHtml = cartao.descricao
-        ? `<div class="kb-card-desc">${esc(cartao.descricao)}</div>`
+        ? `<div class="kb-card-rich-preview">${cartao.descricao}</div>`
         : '';
 
     const hoje = new Date();
@@ -1147,14 +1247,14 @@ function atualizarCardNaDOM(id, dados) {
     const prioBar = cardEl.querySelector('.kb-card-prio-bar');
     prioBar.className = `kb-card-prio-bar prio-${dados.prioridade}`;
 
-    let descEl = cardEl.querySelector('.kb-card-desc');
+    let descEl = cardEl.querySelector('.kb-card-rich-preview');
     if (dados.descricao) {
         if (!descEl) {
             descEl = document.createElement('div');
-            descEl.className = 'kb-card-desc';
+            descEl.className = 'kb-card-rich-preview';
             cardEl.querySelector('.kb-card-title').after(descEl);
         }
-        descEl.textContent = dados.descricao;
+        descEl.innerHTML = dados.descricao;
     } else if (descEl) {
         descEl.remove();
     }
@@ -1180,6 +1280,65 @@ window.confirmarExcluirCartao = function(id, titulo) {
         }
     });
 };
+
+/* ═══ Editor rico: toolbar ═════════════════════════════════════════════ */
+
+/* Impede que os botões da toolbar roubem o foco do editor */
+document.querySelectorAll('.kb-tb-btn').forEach(btn => {
+    btn.addEventListener('mousedown', e => e.preventDefault());
+});
+
+document.getElementById('btnTbNegrito').addEventListener('click', () => {
+    document.getElementById('inputCartaoDescricao').focus();
+    document.execCommand('bold', false, null);
+});
+
+document.getElementById('btnTbImagem').addEventListener('click', () => {
+    document.getElementById('uploadImagemKanban').click();
+});
+
+document.getElementById('uploadImagemKanban').addEventListener('change', async function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    const fd = new FormData();
+    fd.append('imagem', file);
+
+    try {
+        const res = await fetch('/kanban/upload-imagem', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.url) {
+            const editor = document.getElementById('inputCartaoDescricao');
+            editor.focus();
+            document.execCommand('insertHTML', false,
+                `<img src="${data.url}" alt="imagem" style="max-width:100%;max-height:160px;border-radius:4px;display:block;margin:4px 0">`);
+        }
+    } catch (err) {
+        console.error('Erro ao enviar imagem:', err);
+    }
+    this.value = '';
+});
+
+document.getElementById('btnTbTabela').addEventListener('click', () => {
+    const cols = 3, rows = 3;
+    let html = '<table style="border-collapse:collapse;width:100%;margin:6px 0;font-size:12px"><tbody><tr>';
+    for (let c = 0; c < cols; c++) {
+        html += '<th style="border:1px solid #dbe4ef;padding:4px 8px;background:#f8fafc;font-weight:600">&#8203;</th>';
+    }
+    html += '</tr>';
+    for (let r = 1; r < rows; r++) {
+        html += '<tr>';
+        for (let c = 0; c < cols; c++) {
+            html += '<td style="border:1px solid #dbe4ef;padding:4px 8px;min-width:40px">&#8203;</td>';
+        }
+        html += '</tr>';
+    }
+    html += '</tbody></table><br>';
+
+    const editor = document.getElementById('inputCartaoDescricao');
+    editor.focus();
+    document.execCommand('insertHTML', false, html);
+});
 
 /* ═══ Fechar modais ao clicar fora ════════════════════════════════════ */
 

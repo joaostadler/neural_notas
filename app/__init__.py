@@ -46,6 +46,7 @@ def criar_app(config=None):
             'ALTER TABLE tarefas_faceis ADD COLUMN observacao_conclusao TEXT',
             'ALTER TABLE pdfs ADD COLUMN percentual_lido INTEGER DEFAULT 0',
             'ALTER TABLE pdfs ADD COLUMN anotacoes TEXT DEFAULT \'\'',
+            "ALTER TABLE pdfs ADD COLUMN capa VARCHAR(500) DEFAULT ''",
         ]:
             try:
                 db.session.execute(db.text(stmt))

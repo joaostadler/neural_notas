@@ -5,16 +5,23 @@
       <span class="bib-icone">📚</span>
       <h1 class="bib-titulo">{{ topico.nome }}</h1>
       {% if conteudo %}
-        <span class="bib-count">{{ conteudo|length }} PDF{% if conteudo|length != 1 %}s{% endif %}</span>
+        <span class="bib-count">{{ conteudo|length }} livro{% if conteudo|length != 1 %}s{% endif %}</span>
       {% endif %}
     </div>
-    <form method="post" action="/pdf/importar" enctype="multipart/form-data" id="bibForm">
-      <input type="hidden" name="id_pai_pdf" value="{{ topico.id }}">
-      <label class="btn btn-primary btn-sm bib-import-btn">
-        + Importar PDF
-        <input type="file" name="arquivo_pdf" accept="application/pdf" id="bibFileInput" style="display:none">
-      </label>
-    </form>
+    <div class="bib-hdr-dir">
+      <div class="bib-zoom-ctrl" title="Zoom da grade">
+        <span class="bib-zoom-ico">⊟</span>
+        <input type="range" id="bibZoom" min="120" max="300" value="180" step="10" class="bib-zoom-slider">
+        <span class="bib-zoom-ico">⊞</span>
+      </div>
+      <form method="post" action="/pdf/importar" enctype="multipart/form-data" id="bibForm">
+        <input type="hidden" name="id_pai_pdf" value="{{ topico.id }}">
+        <label class="btn btn-primary btn-sm bib-import-btn">
+          + Importar PDF
+          <input type="file" name="arquivo_pdf" accept="application/pdf" id="bibFileInput" style="display:none">
+        </label>
+      </form>
+    </div>
   </header>
 
   {% if not conteudo %}
@@ -24,29 +31,55 @@
       <p>Clique em <strong>+ Importar PDF</strong> para adicionar.</p>
     </div>
   {% else %}
-    <div class="bib-lista" id="bibLista">
+    <div class="bib-grid" id="bibGrid">
       {% for item in conteudo %}{% set pdf = item.pdfs %}{% if pdf %}
       <article class="bib-card" data-id="{{ item.id }}">
 
-        <div class="bib-card-hdr">
-          <span class="bib-pdf-ico">📑</span>
+        <!-- Capa -->
+        <div class="bib-cover" title="Trocar capa">
+          {% if pdf.capa %}
+          <img src="/static/{{ pdf.capa }}" class="bib-cover-img" alt="capa">
+          {% else %}
+          <div class="bib-cover-placeholder">
+            <span>📑</span>
+            <span>PDF</span>
+          </div>
+          {% endif %}
+          <div class="bib-cover-overlay">
+            <label class="bib-cover-upload-btn">
+              🖼 Trocar capa
+              <input type="file" accept="image/*" class="bib-capa-input"
+                     data-id="{{ item.id }}" style="display:none">
+            </label>
+          </div>
+        </div>
+
+        <!-- Informações -->
+        <div class="bib-card-info">
           <span class="bib-card-nome">{{ item.nome }}</span>
-          <span class="bib-save-badge" id="badge-{{ item.id }}">—</span>
-        </div>
 
-        <div class="bib-progresso-row">
-          <input type="range" class="bib-slider" min="0" max="100"
-                 value="{{ pdf.percentual_lido }}">
-          <span class="bib-pct">{{ pdf.percentual_lido }}%</span>
-        </div>
-        <div class="bib-barra">
-          <div class="bib-barra-fill" style="width:{{ pdf.percentual_lido }}%"></div>
-        </div>
+          <div class="bib-pct-row">
+            <input type="range" class="bib-slider" min="0" max="100"
+                   value="{{ pdf.percentual_lido }}" title="Percentual lido">
+            <span class="bib-pct">{{ pdf.percentual_lido }}%</span>
+          </div>
+          <div class="bib-pct-bar">
+            <div class="bib-pct-bar-fill" style="width:{{ pdf.percentual_lido }}%"></div>
+          </div>
 
-        <div class="bib-nota" contenteditable="true" spellcheck="false"
-             data-id="{{ item.id }}"
-             data-placeholder="Anotações… use #NomeDaNota para vincular">
-          {% if pdf.anotacoes %}{{ pdf.anotacoes | safe }}{% else %}<p><br></p>{% endif %}
+          <div class="bib-nota-row">
+            <button class="bib-nota-toggle" data-expanded="false">
+              <span class="bib-nota-arrow">▸</span> Anotações
+              <span class="bib-save-badge" id="badge-{{ item.id }}">—</span>
+            </button>
+            <div class="bib-nota-wrap" hidden>
+              <div class="bib-nota" contenteditable="true" spellcheck="false"
+                   data-id="{{ item.id }}"
+                   data-placeholder="Anotações… use #NomeDaNota para vincular">
+                {% if pdf.anotacoes %}{{ pdf.anotacoes | safe }}{% else %}<p><br></p>{% endif %}
+              </div>
+            </div>
+          </div>
         </div>
 
       </article>
@@ -59,10 +92,12 @@
 <style>
 .bib-wrap { display:flex; flex-direction:column; height:100%; background:#f8fafc; overflow:hidden }
 
+/* ── Header ── */
 .bib-hdr { display:flex; justify-content:space-between; align-items:center;
            padding:12px 24px; border-bottom:1px solid #e2e8f0; background:#fff;
-           flex-shrink:0; gap:12px }
+           flex-shrink:0; gap:12px; flex-wrap:wrap }
 .bib-hdr-esq { display:flex; align-items:center; gap:10px; min-width:0 }
+.bib-hdr-dir { display:flex; align-items:center; gap:12px; flex-shrink:0 }
 .bib-icone   { font-size:20px; flex-shrink:0 }
 .bib-titulo  { font-size:18px; font-weight:700; color:#0f172a; margin:0;
                overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
@@ -70,42 +105,107 @@
                padding:2px 8px; border-radius:10px; flex-shrink:0 }
 .bib-import-btn { cursor:pointer }
 
+/* ── Zoom ── */
+.bib-zoom-ctrl { display:flex; align-items:center; gap:6px }
+.bib-zoom-ico  { font-size:14px; color:#94a3b8; user-select:none }
+.bib-zoom-slider {
+    width: 90px; accent-color:#7c3aed; cursor:pointer;
+}
+
+/* ── Vazio ── */
 .bib-vazio { flex:1; display:flex; flex-direction:column; align-items:center;
              justify-content:center; color:#94a3b8; font-size:14px; gap:6px }
 .bib-vazio-icone { font-size:48px; margin:0 }
 
-.bib-lista { flex:1; overflow-y:auto; padding:16px 24px; display:flex;
-             flex-direction:column; gap:16px }
+/* ── Grade ── */
+.bib-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--bib-card-w, 180px), 1fr));
+    gap: 16px;
+    align-content: start;
+}
+.bib-grid::-webkit-scrollbar { width:6px }
+.bib-grid::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:3px }
 
-.bib-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px;
-            padding:16px; display:flex; flex-direction:column; gap:10px }
+/* ── Card ── */
+.bib-card {
+    background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+    overflow:hidden; display:flex; flex-direction:column;
+    transition:box-shadow 0.15s;
+}
+.bib-card:hover { box-shadow:0 4px 16px rgba(0,0,0,0.1); border-color:#cbd5e1 }
 
-.bib-card-hdr { display:flex; align-items:center; gap:8px }
-.bib-pdf-ico  { font-size:16px; flex-shrink:0 }
-.bib-card-nome { font-size:14px; font-weight:600; color:#1e293b;
-                 flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.bib-save-badge { font-size:11px; color:#94a3b8; flex-shrink:0; transition:color 0.2s }
+/* ── Capa ── */
+.bib-cover {
+    width: 100%;
+    aspect-ratio: 5 / 7;
+    background: #f1f5f9;
+    display: flex; align-items:center; justify-content:center;
+    overflow: hidden; position: relative; cursor:pointer;
+}
+.bib-cover-img { width:100%; height:100%; object-fit:cover }
+.bib-cover-placeholder {
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    color:#94a3b8; font-size:13px;
+}
+.bib-cover-placeholder span:first-child { font-size:32px }
+.bib-cover-overlay {
+    position:absolute; inset:0; background:rgba(0,0,0,0.5);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity 0.15s;
+}
+.bib-cover:hover .bib-cover-overlay { opacity:1 }
+.bib-cover-upload-btn {
+    background:#fff; border:none; border-radius:6px;
+    padding:6px 12px; font-size:12px; font-weight:600;
+    cursor:pointer; font-family:inherit; color:#1e293b;
+    white-space:nowrap;
+}
+.bib-cover-upload-btn:hover { background:#f0f9ff }
+
+/* ── Info ── */
+.bib-card-info { padding:10px 12px; display:flex; flex-direction:column; gap:7px }
+.bib-card-nome {
+    font-size:13px; font-weight:600; color:#1e293b;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    display:block;
+}
+
+/* ── Slider de progresso ── */
+.bib-pct-row   { display:flex; align-items:center; gap:6px }
+.bib-slider    { flex:1; accent-color:#7c3aed; cursor:pointer; min-width:0 }
+.bib-pct       { font-size:11px; font-weight:700; color:#7c3aed; min-width:30px; text-align:right; flex-shrink:0 }
+.bib-pct-bar   { height:3px; background:#e2e8f0; border-radius:2px; overflow:hidden }
+.bib-pct-bar-fill { height:100%; background:#7c3aed; border-radius:2px; transition:width 0.2s }
+
+/* ── Anotações ── */
+.bib-nota-row { display:flex; flex-direction:column; gap:4px }
+.bib-nota-toggle {
+    background:transparent; border:none; padding:2px 0;
+    font-size:11px; color:#94a3b8; cursor:pointer; text-align:left;
+    font-family:inherit; display:flex; align-items:center; gap:5px;
+    width:100%;
+}
+.bib-nota-toggle:hover { color:#475569 }
+.bib-nota-arrow { font-size:10px; transition:transform 0.15s }
+.bib-nota-toggle[data-expanded="true"] .bib-nota-arrow { transform:rotate(90deg) }
+.bib-save-badge { font-size:10px; color:#94a3b8; margin-left:auto; transition:color 0.2s }
 .bib-save-badge.saving { color:#f59e0b }
 .bib-save-badge.saved  { color:#22c55e }
 .bib-save-badge.error  { color:#ef4444 }
-
-.bib-progresso-row { display:flex; align-items:center; gap:10px }
-.bib-slider { flex:1; accent-color:#7c3aed; cursor:pointer }
-.bib-pct    { font-size:13px; font-weight:600; color:#7c3aed;
-              min-width:38px; text-align:right; flex-shrink:0 }
-
-.bib-barra      { height:4px; background:#e2e8f0; border-radius:2px; overflow:hidden }
-.bib-barra-fill { height:100%; background:#7c3aed; border-radius:2px; transition:width 0.2s }
-
-.bib-nota { min-height:36px; max-height:120px; overflow-y:auto;
-            padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px;
-            font-size:13px; line-height:1.6; color:#1e293b;
-            outline:none; background:#f8fafc; transition:border-color 0.15s }
+.bib-nota-wrap[hidden] { display:none }
+.bib-nota {
+    min-height:48px; max-height:120px; overflow-y:auto;
+    padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px;
+    font-size:12px; line-height:1.6; color:#1e293b;
+    outline:none; background:#f8fafc; transition:border-color 0.15s;
+}
 .bib-nota:focus { border-color:#7c3aed; background:#fff }
-.bib-nota:empty::before,
-.bib-nota p:only-child:has(> br:only-child) + :last-child { display:none }
 .bib-nota[data-placeholder]:empty::before {
-  content: attr(data-placeholder); color:#94a3b8; pointer-events:none }
+    content:attr(data-placeholder); color:#94a3b8; pointer-events:none }
 
 /* nota-links */
 .nota-link { color:#2563eb; background:#eff6ff; border-radius:3px;
@@ -124,13 +224,63 @@
 
 <script>
 (function () {
-  /* Auto-submit ao escolher arquivo */
+  /* Auto-submit ao escolher arquivo PDF */
   document.getElementById('bibFileInput')?.addEventListener('change', function () {
     if (this.files[0]) document.getElementById('bibForm').submit();
   });
 
+  /* ── Zoom da grade ── */
+  const zoomEl = document.getElementById('bibZoom');
+  const grid   = document.getElementById('bibGrid');
+  if (zoomEl && grid) {
+    const saved = localStorage.getItem('bibZoom');
+    if (saved) { zoomEl.value = saved; grid.style.setProperty('--bib-card-w', saved + 'px'); }
+    zoomEl.addEventListener('input', () => {
+      grid.style.setProperty('--bib-card-w', zoomEl.value + 'px');
+      localStorage.setItem('bibZoom', zoomEl.value);
+    });
+  }
+
   const TIPO_ICONE = { nota:'📒', caderno:'📔', planilha:'📊',
                        diagrama:'🔷', jupyter:'⚗️', tarefa:'🎯', imagem:'🖼' };
+
+  /* ── Upload de capa ── */
+  document.querySelectorAll('.bib-capa-input').forEach(input => {
+    input.addEventListener('change', async function () {
+      const id   = this.dataset.id;
+      const file = this.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('capa', file);
+      try {
+        const res  = await fetch(`/topico/${id}/upload-capa`, { method:'POST', body:fd });
+        const data = await res.json();
+        if (data.ok && data.url) {
+          const card   = this.closest('.bib-card');
+          const cover  = card.querySelector('.bib-cover');
+          let img      = cover.querySelector('.bib-cover-img');
+          if (!img) {
+            cover.querySelector('.bib-cover-placeholder')?.remove();
+            img = document.createElement('img');
+            img.className = 'bib-cover-img';
+            cover.insertBefore(img, cover.querySelector('.bib-cover-overlay'));
+          }
+          img.src = data.url + '?t=' + Date.now();
+        }
+      } catch (e) { console.error('Erro ao enviar capa:', e); }
+      this.value = '';
+    });
+  });
+
+  /* ── Toggle de anotações ── */
+  document.querySelectorAll('.bib-nota-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const wrap = btn.nextElementSibling;
+      const open = btn.dataset.expanded === 'true';
+      btn.dataset.expanded = open ? 'false' : 'true';
+      wrap.hidden = open;
+    });
+  });
 
   /* ── Wrap #Palavra em links de nota ── */
   function wrapNotaLinks(root) {
@@ -169,18 +319,20 @@
     const badge  = document.getElementById('badge-' + id);
     const slider = card.querySelector('.bib-slider');
     const pctEl  = card.querySelector('.bib-pct');
-    const barra  = card.querySelector('.bib-barra-fill');
+    const barra  = card.querySelector('.bib-pct-bar-fill');
     const nota   = card.querySelector('.bib-nota');
 
     let saveTimer, acTimer;
     let popup = null, acItems = [], acIdx = -1;
 
-    function setBadge(txt, cls) { badge.textContent = txt; badge.className = 'bib-save-badge ' + cls; }
+    function setBadge(txt, cls) {
+      if (badge) { badge.textContent = txt; badge.className = 'bib-save-badge ' + cls; }
+    }
 
     /* ── Slider ── */
     slider.addEventListener('input', () => {
-      pctEl.textContent  = slider.value + '%';
-      barra.style.width  = slider.value + '%';
+      pctEl.textContent = slider.value + '%';
+      barra.style.width = slider.value + '%';
       setBadge('Editando…', 'saving');
     });
     slider.addEventListener('change', () => {
@@ -205,7 +357,7 @@
     nota.addEventListener('input', () => {
       setBadge('Editando…', 'saving');
       clearTimeout(saveTimer); saveTimer = setTimeout(salvarNota, 1500);
-      clearTimeout(acTimer);  acTimer   = setTimeout(checkAC, 180);
+      clearTimeout(acTimer);   acTimer   = setTimeout(checkAC, 180);
     });
     nota.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); clearTimeout(saveTimer); salvarNota(); return; }

@@ -18,7 +18,9 @@
 } %}
 
 {% macro icone_topico(topico) %}
-                      {% if topico.tipo in ('pasta', 'biblioteca') %}
+    {% if icones_customizados.get(topico.tipo) %}
+        <img src="{{ icones_customizados[topico.tipo] }}" class="t-icon-custom" alt="{{ topico.tipo }}">
+    {% elif topico.tipo in ('pasta', 'biblioteca') %}
         <img src="{{ url_for('static', filename='icons/pasta.png') }}"
              class="t-icon-pasta" alt="pasta">
     {% elif topico.tipo == 'python' %}
@@ -73,6 +75,7 @@
             <span class="sidebar-cab-label">Biblioteca</span>
             <div class="sidebar-cab-actions">
                 <button class="sidebar-tree-btn" id="btnPainel" title="Painel de resumo">📊</button>
+                <button class="sidebar-tree-btn" id="btnIcones" title="Gerenciar ícones" onclick="document.getElementById('modalIcones').hidden=false">🎨</button>
                 <button class="sidebar-tree-btn" id="btnExpandirTudo" title="Expandir tudo">⊞</button>
                 <button class="sidebar-tree-btn" id="btnReduzirTudo"  title="Recolher tudo">⊟</button>
                 <button class="sidebar-tree-btn" id="btnSidebarToggle" title="Recolher sidebar">‹</button>
@@ -204,6 +207,42 @@
     <button class="ctx-item ctx-item-danger" id="ctxBtnDeletar" hidden>
         <span class="ctx-icon-del">🗑</span><span id="ctxDelLabel">Deletar item</span>
     </button>
+</div>
+
+<!-- ── Modal Gerenciar Ícones ─────────── -->
+<div id="modalIcones" class="ic-modal-backdrop" hidden>
+    <div class="ic-modal">
+        <div class="ic-modal-hdr">
+            <h3 class="ic-modal-titulo">Ícones personalizados</h3>
+            <button class="ic-modal-fechar" onclick="document.getElementById('modalIcones').hidden=true">×</button>
+        </div>
+        <p class="ic-modal-desc">Faça upload de uma imagem para substituir o ícone de cada tipo. A imagem será redimensionada para 48×48 px e aplicada para todos os itens daquele tipo.</p>
+        <div class="ic-grid" id="icGrid">
+            {% set tipos_icone = [
+                ('nota','Nota'),('caderno','Caderno'),('planilha','Planilha'),
+                ('diagrama','Diagrama'),('jupyter','Notebook'),('tarefa','Tarefa'),
+                ('imagem','Imagem'),('python','Python'),('sql','SQL'),
+                ('biblioteca','Biblioteca'),('pdf','PDF'),('pasta','Pasta'),
+            ] %}
+            {% for tipo, label in tipos_icone %}
+            <div class="ic-item" data-tipo="{{ tipo }}">
+                <div class="ic-preview">
+                    {% if icones_customizados.get(tipo) %}
+                    <img src="{{ icones_customizados[tipo] }}" class="ic-preview-img" id="icPrev-{{ tipo }}">
+                    {% else %}
+                    <span class="ic-preview-placeholder" id="icPrev-{{ tipo }}">{{ tipos_documento.get(tipo, {}).get('icone', '📄') if tipo not in ('python','sql','pasta') else tipo[:2].upper() }}</span>
+                    {% endif %}
+                </div>
+                <span class="ic-label">{{ label }}</span>
+                <label class="ic-upload-btn">
+                    ↑
+                    <input type="file" accept="image/*" class="ic-file-input"
+                           data-tipo="{{ tipo }}" style="display:none">
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 
 <!-- Modais criados dinamicamente via JS quando necessário -->
@@ -495,6 +534,13 @@
 }
 
 /* ── Ícones da árvore ───────────────────── */
+.t-icon-custom {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
 .t-icon-pasta {
     width: 20px;
     height: 20px;
@@ -552,6 +598,54 @@
 
 .t-icon-py, .ctx-icon-py  { background: var(--color-py); }
 .t-icon-sql, .ctx-icon-sql { background: var(--color-sql); }
+
+/* ── Modal de ícones customizados ──────── */
+.ic-modal-backdrop {
+    position: fixed; inset: 0; z-index: 900;
+    background: rgba(15,23,42,0.35);
+    display: flex; align-items: center; justify-content: center;
+}
+.ic-modal-backdrop[hidden] { display: none !important; }
+.ic-modal {
+    background: #fff; border: 1px solid #dbe4ef;
+    border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    padding: 24px; width: 540px; max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 48px); overflow-y: auto;
+}
+.ic-modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ic-modal-titulo { font-size: 17px; font-weight: 700; color: #0f172a; margin: 0; }
+.ic-modal-fechar {
+    background: transparent; border: none; font-size: 20px;
+    color: #94a3b8; cursor: pointer; line-height: 1; padding: 0 4px;
+}
+.ic-modal-fechar:hover { color: #1e293b; }
+.ic-modal-desc { font-size: 12px; color: #64748b; margin: 0 0 16px; line-height: 1.5; }
+.ic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 10px;
+}
+.ic-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 5px; padding: 10px 6px; border: 1px solid #e2e8f0;
+    border-radius: 8px; background: #f8fafc;
+}
+.ic-preview {
+    width: 48px; height: 48px; display: flex;
+    align-items: center; justify-content: center;
+    border-radius: 6px; background: #fff;
+    border: 1px solid #e2e8f0; overflow: hidden;
+}
+.ic-preview-img { width: 48px; height: 48px; object-fit: contain; }
+.ic-preview-placeholder { font-size: 22px; }
+.ic-label { font-size: 11px; color: #475569; font-weight: 500; text-align: center; }
+.ic-upload-btn {
+    background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+    border-radius: 5px; padding: 2px 8px; font-size: 11px;
+    cursor: pointer; font-family: inherit; font-weight: 600;
+    transition: background 0.1s;
+}
+.ic-upload-btn:hover { background: #dbeafe; }
 
 /* ── Menu de contexto ───────────────────── */
 .ctx-menu {
@@ -1624,7 +1718,12 @@ body.sb-resizing iframe { pointer-events: none; }
                     </div>
                 </form>
             </div>`);
-        setTimeout(() => modal.querySelector('input[name="nome"]').focus(), 30);
+        setTimeout(() => {
+            modal.querySelector('input[name="nome"]').focus();
+            modal.querySelector('form').addEventListener('submit', function () {
+                this.querySelector('[type="submit"]').disabled = true;
+            });
+        }, 30);
     }
 
     /* ── Modal: importar PDF ────────────── */
@@ -1632,7 +1731,7 @@ body.sb-resizing iframe { pointer-events: none; }
 
     function abrirPdfModal() {
         const paiLabel = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
-        criarModal(`
+        const modal = criarModal(`
             <div class="modal-box">
                 <p class="modal-subtitle">${paiLabel}</p>
                 <h3 class="modal-title">Importar PDF</h3>
@@ -1648,6 +1747,9 @@ body.sb-resizing iframe { pointer-events: none; }
                     </div>
                 </form>
             </div>`);
+        modal.querySelector('form').addEventListener('submit', function () {
+            this.querySelector('[type="submit"]').disabled = true;
+        });
     }
 
     /* ── Renomear item ──────────────────── */
@@ -1815,6 +1917,58 @@ body.sb-resizing iframe { pointer-events: none; }
         });
     }
 
+}());
+
+/* ── Upload de ícones customizados ──────── */
+(function () {
+    document.querySelectorAll('.ic-file-input').forEach(input => {
+        input.addEventListener('change', async function () {
+            const tipo = this.dataset.tipo;
+            const file = this.files[0];
+            if (!file) return;
+
+            const fd = new FormData();
+            fd.append('icone', file);
+
+            try {
+                const res = await fetch(`/icones/upload/${tipo}`, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    const prev = document.getElementById(`icPrev-${tipo}`);
+                    if (prev) {
+                        const img = document.createElement('img');
+                        img.src = data.url + '?t=' + Date.now();
+                        img.className = 'ic-preview-img';
+                        img.id = `icPrev-${tipo}`;
+                        prev.replaceWith(img);
+                    }
+                    /* Atualizar ícones na árvore sem recarregar a página */
+                    document.querySelectorAll(`.topic-row[data-tipo="${tipo}"] .t-icon-file,
+                        .topic-row[data-tipo="${tipo}"] .t-icon-pasta,
+                        .topic-row[data-tipo="${tipo}"] .code-badge,
+                        .topic-row[data-tipo="${tipo}"] .t-icon-custom`).forEach(el => {
+                        const img = document.createElement('img');
+                        img.src = data.url + '?t=' + Date.now();
+                        img.className = 't-icon-custom';
+                        el.replaceWith(img);
+                    });
+                }
+            } catch (e) {
+                console.error('Erro ao enviar ícone:', e);
+            }
+            this.value = '';
+        });
+    });
+
+    document.getElementById('modalIcones').addEventListener('click', function (e) {
+        if (e.target === this) this.hidden = true;
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            const m = document.getElementById('modalIcones');
+            if (!m.hidden) m.hidden = true;
+        }
+    });
 }());
 </script>
 {% endblock %}

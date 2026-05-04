@@ -1,6 +1,10 @@
 """app/routes/kanban.py — Rotas do quadro Kanban."""
 
-from flask import Blueprint, jsonify, render_template, request
+import os
+from io import BytesIO
+from uuid import uuid4
+
+from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from models import CartaoKanban, ColunaKanban, HistoricoEtapas, db
@@ -246,6 +250,41 @@ def mover_cartao(id):
 
     db.session.commit()
     return jsonify({'ok': True})
+
+
+@bp_kanban.route('/upload-imagem', methods=['POST'])
+@login_required
+def upload_imagem_kanban():
+    from PIL import Image
+
+    arquivo = request.files.get('imagem')
+    if not arquivo or not arquivo.filename:
+        return jsonify({'erro': 'Arquivo inválido'}), 400
+
+    ext = arquivo.filename.rsplit('.', 1)[-1].lower()
+    if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+        return jsonify({'erro': 'Formato inválido'}), 400
+
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'kanban', str(current_user.id))
+    os.makedirs(pasta, exist_ok=True)
+
+    nome_arquivo = f'{uuid4().hex}.{"png" if ext == "png" else "jpg"}'
+    caminho_abs = os.path.join(pasta, nome_arquivo)
+
+    img = Image.open(BytesIO(arquivo.read()))
+    img = img.convert('RGBA') if img.mode in ('RGBA', 'LA', 'P') else img.convert('RGB')
+    max_w = 400
+    if img.width > max_w:
+        ratio = max_w / img.width
+        img = img.resize((max_w, int(img.height * ratio)), Image.LANCZOS)
+
+    fmt = 'PNG' if ext == 'png' else 'JPEG'
+    if fmt == 'JPEG' and img.mode == 'RGBA':
+        img = img.convert('RGB')
+    img.save(caminho_abs, fmt, quality=85)
+
+    caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
+    return jsonify({'url': f'/static/{caminho_rel}'})
 
 
 @bp_kanban.route('/reordenar', methods=['POST'])
