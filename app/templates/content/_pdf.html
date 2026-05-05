@@ -5,18 +5,18 @@
       <span class="doc-badge">PDF</span>
       <h1 class="doc-titulo">{{ topico.nome }}</h1>
     </div>
-    {% if conteudo and conteudo.caminho %}
+    {% if conteudo and (conteudo.conteudo_pdf or conteudo.caminho) %}
       <div class="pdf-actions">
         <span class="pdf-save-badge" id="pdfSaveBadge">-</span>
         <a class="btn-open-pdf"
-           href="{{ url_for('static', filename=conteudo.caminho) }}"
+           href="/pdf/{{ topico.id }}/arquivo"
            target="_blank" rel="noopener">Abrir em nova aba</a>
       </div>
     {% endif %}
   </header>
 
   <div class="pdf-viewer">
-    {% if conteudo and conteudo.caminho %}
+    {% if conteudo and (conteudo.conteudo_pdf or conteudo.caminho) %}
       <div class="pdf-toolbar">
         <button type="button" class="pdf-btn" id="pdfPrev">Anterior</button>
         <span class="pdf-page-label">
@@ -30,7 +30,7 @@
         <div class="pdf-loading" id="pdfLoading">Carregando PDF...</div>
         <iframe
           id="pdfFallbackFrame"
-          src="{{ url_for('static', filename=conteudo.caminho) }}"
+          src="/pdf/{{ topico.id }}/arquivo"
           title="{{ topico.nome }}"
           hidden></iframe>
       </div>
@@ -68,13 +68,13 @@
 .no-content{display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:15px}
 </style>
 
-{% if conteudo and conteudo.caminho %}
+{% if conteudo and (conteudo.conteudo_pdf or conteudo.caminho) %}
 <script>
 (function(){
   const wrap = document.querySelector('.pdf-wrap[data-topico-id="{{ topico.id }}"]');
   if (!wrap) return;
 
-  const pdfUrl = "{{ url_for('static', filename=conteudo.caminho) }}";
+  const pdfUrl = "/pdf/{{ topico.id }}/arquivo";
   const saveUrl = "/topico/{{ topico.id }}/salvar";
   const initialPct = {{ conteudo.percentual_lido or 0 }};
   const canvas = document.getElementById('pdfCanvas');

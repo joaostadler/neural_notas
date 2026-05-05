@@ -48,6 +48,8 @@ def criar_app(config=None):
             'ALTER TABLE pdfs ADD COLUMN anotacoes TEXT DEFAULT \'\'',
             "ALTER TABLE pdfs ADD COLUMN capa VARCHAR(500) DEFAULT ''",
             "ALTER TABLE cartoes_kanban ADD COLUMN observacoes_conclusao TEXT DEFAULT ''",
+            'ALTER TABLE pdfs ADD COLUMN conteudo_pdf BLOB',
+            'ALTER TABLE pdfs ADD COLUMN conteudo_capa BLOB',
         ]:
             try:
                 db.session.execute(db.text(stmt))

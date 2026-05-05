@@ -37,8 +37,8 @@
 
         <!-- Capa -->
         <div class="bib-cover bib-cover-link" data-id="{{ item.id }}" title="Abrir PDF">
-          {% if pdf.capa %}
-          <img src="/static/{{ pdf.capa }}" class="bib-cover-img" alt="capa">
+          {% if pdf.conteudo_capa or pdf.capa %}
+          <img src="/pdf/{{ item.id }}/capa" class="bib-cover-img" alt="capa">
           {% else %}
           <div class="bib-cover-placeholder">
             <span>📑</span>

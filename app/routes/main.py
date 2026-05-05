@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, make_response, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import desc
 from werkzeug.utils import secure_filename
@@ -223,14 +223,8 @@ def importar_pdf():
         flash('Somente arquivos PDF podem ser importados aqui.', 'erro')
         return redirect(url_for('main.dashboard'))
 
-    pasta_pdf = os.path.join(current_app.config['UPLOAD_FOLDER'], 'pdfs', str(current_user.id))
-    os.makedirs(pasta_pdf, exist_ok=True)
-    nome_arquivo = f'{uuid4().hex}_{nome_seguro}'
-    caminho_absoluto = os.path.join(pasta_pdf, nome_arquivo)
-    arquivo.save(caminho_absoluto)
-
+    conteudo_bytes = arquivo.read()
     titulo = os.path.splitext(nome_seguro)[0] or 'PDF importado'
-    caminho_relativo = os.path.relpath(caminho_absoluto, current_app.static_folder).replace('\\', '/')
     topico = Topico(
         id_usuario=current_user.id,
         id_pai=id_pai,
@@ -240,8 +234,8 @@ def importar_pdf():
         ordem=_proxima_ordem(id_pai),
     )
     db.session.add(topico)
-    db.session.flush()  # Garante que o topico tem um ID antes de criar o PDF
-    db.session.add(PDF(id_topico=topico.id, titulo=titulo, caminho=caminho_relativo))
+    db.session.flush()
+    db.session.add(PDF(id_topico=topico.id, titulo=titulo, conteudo_pdf=conteudo_bytes))
     db.session.commit()
 
     flash('PDF importado com sucesso.', 'sucesso')
@@ -481,10 +475,6 @@ def upload_capa_pdf(id):
     if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
         return jsonify({'erro': 'Formato inválido'}), 400
 
-    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'capas', str(current_user.id))
-    os.makedirs(pasta, exist_ok=True)
-
-    caminho_abs = os.path.join(pasta, f'{id}.jpg')
     img = Image.open(BIO(arquivo.read())).convert('RGB')
 
     tw, th = 200, 280
@@ -496,13 +486,54 @@ def upload_capa_pdf(id):
         nh = int(img.width * th / tw)
         img = img.crop((0, (img.height - nh) // 2, img.width, (img.height - nh) // 2 + nh))
     img = img.resize((tw, th), Image.LANCZOS)
-    img.save(caminho_abs, 'JPEG', quality=85)
 
-    caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
-    topico.pdfs.capa = caminho_rel
+    buf = BIO()
+    img.save(buf, 'JPEG', quality=85)
+    topico.pdfs.conteudo_capa = buf.getvalue()
     db.session.commit()
 
-    return jsonify({'ok': True, 'url': f'/static/{caminho_rel}'})
+    return jsonify({'ok': True, 'url': f'/pdf/{id}/capa'})
+
+
+@bp_main.route('/pdf/<int:id>/arquivo')
+@login_required
+def servir_pdf(id):
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'pdf' or not topico.pdfs:
+        return ('Not Found', 404)
+    pdf = topico.pdfs
+    if pdf.conteudo_pdf:
+        import io
+        return send_file(
+            io.BytesIO(pdf.conteudo_pdf),
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name=f'{topico.nome}.pdf',
+        )
+    if pdf.caminho:
+        arquivo = _caminho_static_seguro(pdf.caminho)
+        if arquivo and arquivo.is_file():
+            return send_file(arquivo, mimetype='application/pdf')
+    return ('Not Found', 404)
+
+
+@bp_main.route('/pdf/<int:id>/capa')
+@login_required
+def servir_capa_pdf(id):
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'pdf' or not topico.pdfs:
+        return ('Not Found', 404)
+    pdf = topico.pdfs
+    if pdf.conteudo_capa:
+        resp = make_response(pdf.conteudo_capa)
+        resp.headers['Content-Type'] = 'image/jpeg'
+        resp.headers['Cache-Control'] = 'private, max-age=3600'
+        return resp
+    if pdf.capa:
+        arquivo = _caminho_static_seguro(pdf.capa)
+        if arquivo and arquivo.is_file():
+            return send_file(arquivo, mimetype='image/jpeg')
+    return ('Not Found', 404)
 
 
 @bp_main.route('/topicos/buscar')
