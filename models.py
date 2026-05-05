@@ -66,6 +66,7 @@ class Topico(db.Model):
     imagens = db.relationship('Imagem', backref='topico', lazy=True, cascade='all, delete-orphan', uselist=False)
     codigos = db.relationship('Codigo', backref='topico', lazy=True, cascade='all, delete-orphan', uselist=False)
     cartoes_kanban = db.relationship('CartaoKanban', backref='topico_pai', lazy=True, cascade='all, delete-orphan')
+    apresentacoes = db.relationship('Apresentacao', backref='topico', lazy=True, cascade='all, delete-orphan', uselist=False)
 
     __table_args__ = (
         db.Index('idx_topicos_usuario_pai', 'id_usuario', 'id_pai'),
@@ -309,6 +310,45 @@ class Codigo(db.Model):
 
     def __repr__(self):
         return f'<Codigo {self.titulo}>'
+
+
+class Apresentacao(db.Model):
+    """Modelo de apresentações PowerPoint."""
+    __tablename__ = 'apresentacoes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_topico = db.Column(db.Integer, db.ForeignKey('topicos.id', ondelete='CASCADE'), nullable=False, unique=True)
+    titulo = db.Column(db.String(255), default='')
+    conteudo = db.Column(db.LargeBinary, nullable=True)
+    slides_json = db.Column(db.Text, default='{}')
+    slide_atual = db.Column(db.Integer, default=1)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    comentarios = db.relationship('ComentarioSlide', backref='apresentacao', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Apresentacao {self.titulo}>'
+
+
+class ComentarioSlide(db.Model):
+    """Balão de comentário posicionado em um slide."""
+    __tablename__ = 'comentarios_slide'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_apresentacao = db.Column(db.Integer, db.ForeignKey('apresentacoes.id', ondelete='CASCADE'), nullable=False)
+    slide_num = db.Column(db.Integer, nullable=False)
+    texto = db.Column(db.Text, nullable=False)
+    pos_x = db.Column(db.Float, default=50.0)
+    pos_y = db.Column(db.Float, default=50.0)
+    cor = db.Column(db.String(7), default='#fbbf24')
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('idx_comentarios_slide', 'id_apresentacao', 'slide_num'),
+    )
+
+    def __repr__(self):
+        return f'<ComentarioSlide apres={self.id_apresentacao} slide={self.slide_num}>'
 
 
 class TarefaFacil(db.Model):
