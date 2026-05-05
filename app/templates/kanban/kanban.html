@@ -78,12 +78,8 @@
 
                     <div class="kb-card-prio-bar prio-{{ cartao.prioridade }}"></div>
 
-                    <div class="kb-card-body">
+                    <div class="kb-card-body" onclick="abrirEditarCartao(this.closest('.kb-card'))">
                         <div class="kb-card-title">{{ cartao.titulo }}</div>
-
-                        {% if cartao.descricao %}
-                        <div class="kb-card-rich-preview">{{ cartao.descricao | safe }}</div>
-                        {% endif %}
 
                         <div class="kb-card-footer">
                             <div class="kb-card-tags">
@@ -569,6 +565,7 @@
 .kb-card-body {
     padding: 10px 10px 8px;
     flex: 1;
+    cursor: pointer;
 }
 
 .kb-card-title {
@@ -576,7 +573,7 @@
     font-weight: 600;
     color: #1e293b;
     line-height: 1.4;
-    margin-bottom: 4px;
+    margin-bottom: 0;
 }
 
 .kb-card-rich-preview {
@@ -1328,10 +1325,6 @@ function injetarCartao(colId, cartao) {
 
     const prioLabel = {alta: '● Alta', media: '● Média', baixa: '● Baixa'}[cartao.prioridade] || '● Baixa';
 
-    const descHtml = cartao.descricao
-        ? `<div class="kb-card-rich-preview">${cartao.descricao}</div>`
-        : '';
-
     const hoje = new Date();
     const criadoISO = cartao.criado_em ||
         `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
@@ -1355,9 +1348,8 @@ function injetarCartao(colId, cartao) {
          ondragstart="onDragStart(event)"
          ondragend="onDragEnd(event)">
         <div class="kb-card-prio-bar prio-${cartao.prioridade}"></div>
-        <div class="kb-card-body">
+        <div class="kb-card-body" onclick="abrirEditarCartao(this.closest('.kb-card'))">
             <div class="kb-card-title">${esc(cartao.titulo)}</div>
-            ${descHtml}
             <div class="kb-card-footer">
                 <div class="kb-card-tags">${tagsHtml}</div>
                 <span class="kb-prio-badge prio-badge-${cartao.prioridade}">${prioLabel}</span>
@@ -1393,18 +1385,6 @@ function atualizarCardNaDOM(id, dados) {
 
     const prioBar = cardEl.querySelector('.kb-card-prio-bar');
     prioBar.className = `kb-card-prio-bar prio-${dados.prioridade}`;
-
-    let descEl = cardEl.querySelector('.kb-card-rich-preview');
-    if (dados.descricao) {
-        if (!descEl) {
-            descEl = document.createElement('div');
-            descEl.className = 'kb-card-rich-preview';
-            cardEl.querySelector('.kb-card-title').after(descEl);
-        }
-        descEl.innerHTML = dados.descricao;
-    } else if (descEl) {
-        descEl.remove();
-    }
 
     const tagsContainer = cardEl.querySelector('.kb-card-tags');
     tagsContainer.innerHTML = (dados.etiquetas || '').split(',')
