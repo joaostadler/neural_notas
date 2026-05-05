@@ -11,6 +11,7 @@
         <a class="btn-open-pdf"
            href="/pdf/{{ topico.id }}/arquivo"
            target="_blank" rel="noopener">Abrir em nova aba</a>
+        <button type="button" class="btn-minimizar-pdf" id="btnMinimizarPdf" title="Minimizar">⊟</button>
       </div>
     {% endif %}
   </header>
@@ -54,7 +55,11 @@
 .pdf-save-badge.error{color:#ef4444}
 .btn-open-pdf{font-size:12px;color:#2563eb;text-decoration:none;padding:5px 10px;border:1px solid #bfdbfe;border-radius:6px;white-space:nowrap;transition:all 0.15s;flex-shrink:0}
 .btn-open-pdf:hover{background:#eff6ff}
-.pdf-viewer{flex:1;min-height:0;display:flex;flex-direction:column;background:#f8fafc}
+.btn-minimizar-pdf{font-size:16px;color:#94a3b8;background:none;border:none;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0;transition:color 0.15s}
+.btn-minimizar-pdf:hover{color:#475569}
+.pdf-viewer{flex:1;min-height:0;display:flex;flex-direction:column;background:#f8fafc;transition:flex 0.2s}
+.pdf-wrap.minimizado .pdf-viewer{display:none}
+.pdf-wrap.minimizado{height:auto}
 .pdf-toolbar{height:42px;display:flex;align-items:center;justify-content:center;gap:10px;border-bottom:1px solid #e2e8f0;background:#fff;flex-shrink:0}
 .pdf-btn{height:28px;padding:0 12px;border:1px solid #dbe4ef;border-radius:6px;background:#fff;color:#334155;font-size:12px;cursor:pointer}
 .pdf-btn:hover:not(:disabled){background:#f1f5f9}
@@ -87,6 +92,22 @@
   const badge = document.getElementById('pdfSaveBadge');
   const prevBtn = document.getElementById('pdfPrev');
   const nextBtn = document.getElementById('pdfNext');
+
+  const btnMinimizar = document.getElementById('btnMinimizarPdf');
+  if (btnMinimizar) {
+    const KEY = 'pdfMinimizado_{{ topico.id }}';
+    if (sessionStorage.getItem(KEY) === '1') {
+      wrap.classList.add('minimizado');
+      btnMinimizar.textContent = '⊞';
+      btnMinimizar.title = 'Maximizar';
+    }
+    btnMinimizar.addEventListener('click', () => {
+      const minimizado = wrap.classList.toggle('minimizado');
+      btnMinimizar.textContent = minimizado ? '⊞' : '⊟';
+      btnMinimizar.title = minimizado ? 'Maximizar' : 'Minimizar';
+      sessionStorage.setItem(KEY, minimizado ? '1' : '0');
+    });
+  }
 
   let pdfDoc = null;
   let pageNum = 1;

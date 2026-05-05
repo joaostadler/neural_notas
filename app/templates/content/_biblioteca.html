@@ -36,7 +36,7 @@
       <article class="bib-card" data-id="{{ item.id }}">
 
         <!-- Capa -->
-        <div class="bib-cover bib-cover-link" data-id="{{ item.id }}" title="Abrir PDF">
+        <div class="bib-cover bib-cover-link" data-id="{{ item.id }}" title="Abrir PDF • Ctrl+clique: abrir no leitor">
           {% if pdf.conteudo_capa or pdf.capa %}
           <img src="/pdf/{{ item.id }}/capa" class="bib-cover-img" alt="capa">
           {% else %}
@@ -245,13 +245,17 @@
   const TIPO_ICONE = { nota:'📒', caderno:'📔', planilha:'📊',
                        diagrama:'🔷', jupyter:'⚗️', tarefa:'🎯', imagem:'🖼' };
 
-  /* ── Clique na capa: abrir PDF ── */
+  /* ── Clique na capa: abre o PDF direto; Ctrl+clique navega para o tópico ── */
   document.querySelectorAll('.bib-cover-link').forEach(cover => {
     cover.addEventListener('click', e => {
       if (e.target.closest('.bib-cover-overlay')) return;
-      const id  = parseInt(cover.dataset.id);
-      const nav = (e.ctrlKey || e.metaKey) ? window.novaAba : window.navegarParaNota;
-      if (nav) nav(id);
+      const id = parseInt(cover.dataset.id);
+      if (e.ctrlKey || e.metaKey) {
+        const nav = window.navegarParaNota;
+        if (nav) nav(id);
+      } else {
+        window.open(`/pdf/${id}/arquivo`, '_blank', 'noopener');
+      }
     });
   });
 
