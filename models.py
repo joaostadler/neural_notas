@@ -240,6 +240,8 @@ class PDF(db.Model):
     titulo = db.Column(db.String(255), default='')
     caminho = db.Column(db.String(500), default='')
     capa = db.Column(db.String(500), default='')
+    conteudo_pdf = db.Column(db.LargeBinary, nullable=True)
+    conteudo_capa = db.Column(db.LargeBinary, nullable=True)
     percentual_lido = db.Column(db.Integer, default=0)
     anotacoes = db.Column(db.Text, default='')
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
