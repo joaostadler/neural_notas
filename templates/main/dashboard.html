@@ -18,9 +18,7 @@
 } %}
 
 {% macro icone_topico(topico) %}
-    {% if icones_customizados.get(topico.tipo) %}
-        <img src="{{ icones_customizados[topico.tipo] }}" class="t-icon-custom" alt="{{ topico.tipo }}">
-    {% elif topico.tipo in ('pasta', 'biblioteca') %}
+                      {% if topico.tipo in ('pasta', 'biblioteca') %}
         <img src="{{ url_for('static', filename='icons/pasta.png') }}"
              class="t-icon-pasta" alt="pasta">
     {% elif topico.tipo == 'python' %}
@@ -75,22 +73,11 @@
             <span class="sidebar-cab-label">Biblioteca</span>
             <div class="sidebar-cab-actions">
                 <button class="sidebar-tree-btn" id="btnPainel" title="Painel de resumo">📊</button>
-                <button class="sidebar-tree-btn" id="btnIcones" title="Gerenciar ícones" onclick="document.getElementById('modalIcones').hidden=false">🎨</button>
                 <button class="sidebar-tree-btn" id="btnExpandirTudo" title="Expandir tudo">⊞</button>
                 <button class="sidebar-tree-btn" id="btnReduzirTudo"  title="Recolher tudo">⊟</button>
-                <button class="sidebar-tree-btn" id="btnSidebarToggle" title="Recolher sidebar">‹</button>
             </div>
         </div>
         <div class="sidebar-hr"></div>
-
-        <div class="sidebar-search">
-            <span class="sidebar-search-ico">🔍</span>
-            <input type="text" class="sidebar-search-input" id="sidebarSearchInput"
-                   placeholder="Buscar notas…" autocomplete="off" spellcheck="false">
-            <button class="sidebar-search-clear" id="sidebarSearchClear" title="Limpar">×</button>
-        </div>
-
-        <div class="search-results" id="searchResults"></div>
 
         <div id="rootDropZone" class="root-drop-zone">
             ↖ Soltar aqui para mover para a raiz
@@ -109,11 +96,7 @@
 
     </aside>
 
-    <!-- Handle de redimensionamento da sidebar -->
-    <div id="sbResizeHandle" class="sidebar-resize-handle" title="Arrastar para redimensionar"></div>
-
     <!-- ── Conteúdo ─────────────────────────────── -->
-
     <main class="workspace-main" id="workspaceMain">
 
         <!-- Estado inicial (boas-vindas) -->
@@ -123,26 +106,19 @@
                 <h2>Bem-vindo, {{ current_user.nome }}</h2>
                 <p>Clique com o botão direito na área lateral para criar itens. Clique em um item para abri-lo.</p>
             </section>
-
-            <section class="ws-tarefas-dia">
-                <div class="ws-td-hdr">
-                    <h3>🎯 Tarefas do Dia</h3>
-                    <a href="{{ url_for('tarefas.tarefas') }}" class="ws-td-link">Ver todas →</a>
-                </div>
-                {% if tarefas_do_dia %}
-                <div class="ws-td-lista">
-                    {% for t in tarefas_do_dia %}
-                    <div class="ws-td-item {{ 'ws-td-ok' if t.concluida else '' }}">
-                        <span class="ws-td-chk">{{ '✓' if t.concluida else '○' }}</span>
-                        <span class="ws-td-desc">{{ t.descricao }}</span>
-                        {% if t.solicitante %}<span class="ws-td-sol">{{ t.solicitante }}</span>{% endif %}
-                    </div>
+            {% if tarefas_recentes %}
+            <section class="ws-recent">
+                <h3>Tarefas recentes</h3>
+                <div class="recent-list">
+                    {% for tarefa in tarefas_recentes %}
+                        <article class="recent-item">
+                            <strong>{{ tarefa.descricao }}</strong>
+                            <span>{{ tarefa.data_tarefa }}{% if tarefa.solicitante %} · {{ tarefa.solicitante }}{% endif %}</span>
+                        </article>
                     {% endfor %}
                 </div>
-                {% else %}
-                <p class="ws-td-vazio">Nenhuma tarefa para hoje 🎉</p>
-                {% endif %}
             </section>
+            {% endif %}
         </div>
 
         <!-- Barra de abas -->
@@ -155,8 +131,6 @@
 
     </main>
 </div>
-
-<button id="btnReabrirSb" title="Abrir sidebar">›</button>
 
 <!-- ── Menu de contexto ───────────────────────── -->
 <div id="ctxMenu" class="ctx-menu" hidden>
@@ -209,42 +183,6 @@
     </button>
 </div>
 
-<!-- ── Modal Gerenciar Ícones ─────────── -->
-<div id="modalIcones" class="ic-modal-backdrop" hidden>
-    <div class="ic-modal">
-        <div class="ic-modal-hdr">
-            <h3 class="ic-modal-titulo">Ícones personalizados</h3>
-            <button class="ic-modal-fechar" onclick="document.getElementById('modalIcones').hidden=true">×</button>
-        </div>
-        <p class="ic-modal-desc">Faça upload de uma imagem para substituir o ícone de cada tipo. A imagem será redimensionada para 48×48 px e aplicada para todos os itens daquele tipo.</p>
-        <div class="ic-grid" id="icGrid">
-            {% set tipos_icone = [
-                ('nota','Nota'),('caderno','Caderno'),('planilha','Planilha'),
-                ('diagrama','Diagrama'),('jupyter','Notebook'),('tarefa','Tarefa'),
-                ('imagem','Imagem'),('python','Python'),('sql','SQL'),
-                ('biblioteca','Biblioteca'),('pdf','PDF'),('pasta','Pasta'),
-            ] %}
-            {% for tipo, label in tipos_icone %}
-            <div class="ic-item" data-tipo="{{ tipo }}">
-                <div class="ic-preview">
-                    {% if icones_customizados.get(tipo) %}
-                    <img src="{{ icones_customizados[tipo] }}" class="ic-preview-img" id="icPrev-{{ tipo }}">
-                    {% else %}
-                    <span class="ic-preview-placeholder" id="icPrev-{{ tipo }}">{{ tipos_documento.get(tipo, {}).get('icone', '📄') if tipo not in ('python','sql','pasta') else tipo[:2].upper() }}</span>
-                    {% endif %}
-                </div>
-                <span class="ic-label">{{ label }}</span>
-                <label class="ic-upload-btn">
-                    ↑
-                    <input type="file" accept="image/*" class="ic-file-input"
-                           data-tipo="{{ tipo }}" style="display:none">
-                </label>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-
 <!-- Modais criados dinamicamente via JS quando necessário -->
 
 <style>
@@ -256,11 +194,9 @@
 
 .workspace-shell {
     display: grid;
-    grid-template-columns: var(--sb-width, 260px) minmax(0, 1fr);
+    grid-template-columns: 260px minmax(0, 1fr);
     min-height: calc(100vh - 56px);
     background: #f6f8fb;
-    transition: grid-template-columns 0.22s ease;
-    position: relative;
 }
 
 /* ── Sidebar ────────────────────────────── */
@@ -271,9 +207,6 @@
     flex-direction: column;
     overflow: hidden;
     user-select: none;
-    min-width: 0;
-    transition: max-width 0.22s ease, border-color 0.22s ease;
-    max-width: 600px;
 }
 
 .sidebar-cab {
@@ -324,107 +257,6 @@
     height: 1px;
     background: #dbe4ef;
     flex-shrink: 0;
-}
-
-/* ── Busca na sidebar ────────────────── */
-.sidebar-search {
-    padding: 7px 8px 6px;
-    flex-shrink: 0;
-    position: relative;
-}
-
-.sidebar-search-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 5px 28px 5px 28px;
-    border: 1px solid #dbe4ef;
-    border-radius: 6px;
-    font-size: 12px;
-    font-family: inherit;
-    background: #f8fafc;
-    color: #1e293b;
-    outline: none;
-    transition: border-color .15s, background .15s;
-}
-
-.sidebar-search-input:focus {
-    border-color: #93c5fd;
-    background: #fff;
-}
-
-.sidebar-search-ico {
-    position: absolute;
-    left: 17px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: #94a3b8;
-    pointer-events: none;
-}
-
-.sidebar-search-clear {
-    position: absolute;
-    right: 17px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 14px;
-    color: #94a3b8;
-    cursor: pointer;
-    background: none;
-    border: none;
-    padding: 0;
-    line-height: 1;
-    display: none;
-}
-
-.sidebar-search-clear.visivel { display: block; }
-
-.search-results {
-    display: none;
-    flex: 1;
-    overflow-y: auto;
-    padding: 4px 4px;
-}
-
-.search-results.visivel { display: block; }
-
-.search-result-item {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 6px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #1e293b;
-    transition: background .1s;
-}
-
-.search-result-item:hover { background: #eff6ff; }
-
-.search-result-nome {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.search-result-badge {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 5px;
-    border-radius: 99px;
-    flex-shrink: 0;
-}
-
-.search-result-badge.badge-nome     { background: #dbeafe; color: #1d4ed8; }
-.search-result-badge.badge-conteudo { background: #fef9c3; color: #854d0e; }
-
-.search-empty {
-    padding: 16px 12px;
-    text-align: center;
-    color: #94a3b8;
-    font-size: 12px;
 }
 
 /* ── Drag & drop na árvore ──────────── */
@@ -534,13 +366,6 @@
 }
 
 /* ── Ícones da árvore ───────────────────── */
-.t-icon-custom {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-    flex-shrink: 0;
-}
-
 .t-icon-pasta {
     width: 20px;
     height: 20px;
@@ -598,54 +423,6 @@
 
 .t-icon-py, .ctx-icon-py  { background: var(--color-py); }
 .t-icon-sql, .ctx-icon-sql { background: var(--color-sql); }
-
-/* ── Modal de ícones customizados ──────── */
-.ic-modal-backdrop {
-    position: fixed; inset: 0; z-index: 900;
-    background: rgba(15,23,42,0.35);
-    display: flex; align-items: center; justify-content: center;
-}
-.ic-modal-backdrop[hidden] { display: none !important; }
-.ic-modal {
-    background: #fff; border: 1px solid #dbe4ef;
-    border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-    padding: 24px; width: 540px; max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 48px); overflow-y: auto;
-}
-.ic-modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.ic-modal-titulo { font-size: 17px; font-weight: 700; color: #0f172a; margin: 0; }
-.ic-modal-fechar {
-    background: transparent; border: none; font-size: 20px;
-    color: #94a3b8; cursor: pointer; line-height: 1; padding: 0 4px;
-}
-.ic-modal-fechar:hover { color: #1e293b; }
-.ic-modal-desc { font-size: 12px; color: #64748b; margin: 0 0 16px; line-height: 1.5; }
-.ic-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 10px;
-}
-.ic-item {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 5px; padding: 10px 6px; border: 1px solid #e2e8f0;
-    border-radius: 8px; background: #f8fafc;
-}
-.ic-preview {
-    width: 48px; height: 48px; display: flex;
-    align-items: center; justify-content: center;
-    border-radius: 6px; background: #fff;
-    border: 1px solid #e2e8f0; overflow: hidden;
-}
-.ic-preview-img { width: 48px; height: 48px; object-fit: contain; }
-.ic-preview-placeholder { font-size: 22px; }
-.ic-label { font-size: 11px; color: #475569; font-weight: 500; text-align: center; }
-.ic-upload-btn {
-    background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
-    border-radius: 5px; padding: 2px 8px; font-size: 11px;
-    cursor: pointer; font-family: inherit; font-weight: 600;
-    transition: background 0.1s;
-}
-.ic-upload-btn:hover { background: #dbeafe; }
 
 /* ── Menu de contexto ───────────────────── */
 .ctx-menu {
@@ -960,216 +737,49 @@
     margin: 0;
 }
 
-/* ── Tarefas do Dia ─────────────────────── */
-.ws-tarefas-dia {
-    background: #ffffff;
-    border: 1px solid #dbe4ef;
-    border-radius: 8px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
-}
-
-.ws-td-hdr {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-}
-
-.ws-td-hdr h3 {
+.ws-recent h3 {
     font-size: 15px;
     font-weight: 600;
     color: #0f172a;
-    margin: 0;
+    margin: 0 0 12px;
 }
 
-.ws-td-link {
-    font-size: 12px;
-    font-weight: 600;
-    color: #2563eb;
-    text-decoration: none;
-    padding: 3px 8px;
-    border-radius: 5px;
-    transition: background .12s;
+.recent-list {
+    display: grid;
+    gap: 8px;
 }
 
-.ws-td-link:hover { background: #eff6ff; }
-
-.ws-td-lista { display: flex; flex-direction: column; gap: 6px; }
-
-.ws-td-item {
-    display: flex;
-    align-items: baseline;
-    gap: 9px;
-    font-size: 13px;
-    color: #1e293b;
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid #f1f5f9;
-    background: #f8fafc;
-}
-
-.ws-td-item.ws-td-ok {
-    color: #94a3b8;
-    text-decoration: line-through;
-    background: transparent;
-}
-
-.ws-td-chk {
-    font-size: 12px;
-    flex-shrink: 0;
-    color: #94a3b8;
-}
-
-.ws-td-item.ws-td-ok .ws-td-chk { color: #22c55e; }
-
-.ws-td-desc { flex: 1; }
-
-.ws-td-sol {
-    font-size: 11px;
-    color: #94a3b8;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.ws-td-vazio {
-    font-size: 13px;
-    color: #94a3b8;
-    margin: 0;
-    padding: 4px 0;
-}
-
-/* ── Toggle sidebar desktop ─────────────── */
-#btnSidebarToggle { display: flex; }
-
-/* Estado colapsado no desktop */
-.workspace-shell.sb-fechada {
-    grid-template-columns: 0 minmax(0, 1fr);
-}
-.workspace-shell.sb-fechada .workspace-sidebar {
-    max-width: 0;
-    border-right-color: transparent;
-}
-
-/* ── Handle de redimensionamento da sidebar ─ */
-.sidebar-resize-handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: var(--sb-width, 260px);
-    width: 5px;
-    margin-left: -2px;
-    cursor: col-resize;
-    z-index: 50;
-    transition: background 0.15s;
-}
-.sidebar-resize-handle::after {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0;
-    left: 2px;
-    width: 1px;
-    background: transparent;
-    transition: background 0.15s;
-}
-.sidebar-resize-handle:hover::after,
-.sidebar-resize-handle.resizing::after {
-    background: #2563eb66;
-}
-.workspace-shell.sb-fechada .sidebar-resize-handle {
-    display: none;
-}
-body.sb-resizing {
-    cursor: col-resize !important;
-    user-select: none !important;
-    -webkit-user-select: none !important;
-}
-body.sb-resizing iframe { pointer-events: none; }
-
-/* Aba flutuante para reabrir */
-#btnReabrirSb {
-    position: fixed;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 200;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 52px;
-    background: #ffffff;
+.recent-item {
     border: 1px solid #dbe4ef;
-    border-left: none;
-    border-radius: 0 8px 8px 0;
-    cursor: pointer;
-    color: #94a3b8;
-    font-size: 14px;
-    box-shadow: 2px 0 8px rgba(0,0,0,.10);
-    padding: 0;
-    transition: background .12s, color .12s;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
 }
-#btnReabrirSb:hover { background: #f1f5f9; color: #1e293b; }
+
+.recent-item span {
+    color: #64748b;
+    font-size: 12px;
+}
 
 /* ── Responsivo ─────────────────────────── */
-
 @media (max-width: 820px) {
-    .sidebar-resize-handle { display: none !important; }
-
     .workspace-shell {
         grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
-        min-height: 0;
-        height: calc(100vh - 56px);
     }
 
     .workspace-sidebar {
         border-right: none;
         border-bottom: 1px solid #dbe4ef;
-        overflow: hidden;
-        max-height: 44px;
-        transition: max-height 0.25s ease;
-        flex-shrink: 0;
-    }
-
-    .workspace-sidebar.sb-aberta {
-        max-height: 55vh;
-        overflow-y: auto;
-    }
-
-    /* Ocultar conteúdo quando sidebar fechada */
-    .workspace-sidebar:not(.sb-aberta) .sidebar-search,
-    .workspace-sidebar:not(.sb-aberta) .search-results,
-    .workspace-sidebar:not(.sb-aberta) #rootDropZone,
-    .workspace-sidebar:not(.sb-aberta) .tree-panel,
-    .workspace-sidebar:not(.sb-aberta) .sidebar-hr {
-        display: none;
-    }
-
-    #btnSidebarToggle { display: flex; }
-
-    .workspace-main {
-        min-height: 0;
-        overflow: hidden;
+        max-height: 45vh;
     }
 
     .ws-selected {
         flex-direction: column;
         align-items: flex-start;
     }
-}
-
-@media (max-width: 640px) {
-    .workspace-shell { height: calc(100vh - 48px); }
-
-    #welcomeState { padding: 14px; }
-
-    .ws-hero { padding: 16px; }
-    .ws-hero h2 { font-size: 20px; }
-
-    .ws-tarefas-dia { padding: 14px 16px; }
-
-    .ws-td-sol { display: none; }
 }
 </style>
 
@@ -1194,88 +804,6 @@ body.sb-resizing iframe { pointer-events: none; }
         sql:    { label: 'SQL', color: '#e38c00' },
     };
 
-    /* ── Toggle sidebar (desktop + mobile) ── */
-    const wsShell      = document.querySelector('.workspace-shell');
-    const sbEl         = document.getElementById('sidebar');
-    const btnSbToggle  = document.getElementById('btnSidebarToggle');
-    const btnReabrirSb = document.getElementById('btnReabrirSb');
-
-    function isMobile() { return window.innerWidth <= 820; }
-
-    function fecharSb() {
-        if (isMobile()) {
-            sbEl.classList.remove('sb-aberta');
-            btnSbToggle.textContent = '▼';
-        } else {
-            wsShell.classList.add('sb-fechada');
-            btnSbToggle.textContent = '›';
-            if (btnReabrirSb) btnReabrirSb.style.display = 'flex';
-            localStorage.setItem('sb-fechada', '1');
-        }
-    }
-
-    function abrirSb() {
-        if (isMobile()) {
-            sbEl.classList.add('sb-aberta');
-            btnSbToggle.textContent = '▲';
-        } else {
-            wsShell.classList.remove('sb-fechada');
-            btnSbToggle.textContent = '‹';
-            if (btnReabrirSb) btnReabrirSb.style.display = 'none';
-            localStorage.setItem('sb-fechada', '0');
-        }
-    }
-
-    btnSbToggle.addEventListener('click', () => {
-        if (isMobile()) {
-            sbEl.classList.contains('sb-aberta') ? fecharSb() : abrirSb();
-        } else {
-            wsShell.classList.contains('sb-fechada') ? abrirSb() : fecharSb();
-        }
-    });
-
-    if (btnReabrirSb) {
-        btnReabrirSb.addEventListener('click', abrirSb);
-    }
-
-    /* Sidebar sempre aberta ao carregar */
-
-    /* ── Redimensionar sidebar ───────────────── */
-    (function() {
-        const handle = document.getElementById('sbResizeHandle');
-        const MIN_W = 160, MAX_W = 520;
-
-        function applySbWidth(w) {
-            w = Math.max(MIN_W, Math.min(MAX_W, Math.round(w)));
-            wsShell.style.setProperty('--sb-width', w + 'px');
-            localStorage.setItem('sb-width', w);
-        }
-
-        const sbWidthSalva = parseInt(localStorage.getItem('sb-width'));
-        if (sbWidthSalva && !isMobile()) applySbWidth(sbWidthSalva);
-
-        handle.addEventListener('mousedown', function(e) {
-            if (isMobile() || wsShell.classList.contains('sb-fechada')) return;
-            e.preventDefault();
-            const startX = e.clientX;
-            const startW = sbEl.getBoundingClientRect().width;
-            handle.classList.add('resizing');
-            document.body.classList.add('sb-resizing');
-
-            function onMove(e) { applySbWidth(startW + e.clientX - startX); }
-
-            function onUp() {
-                handle.classList.remove('resizing');
-                document.body.classList.remove('sb-resizing');
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-            }
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        });
-    })();
-
     /* ── Expandir / Recolher árvore ───── */
     document.getElementById('btnExpandirTudo').addEventListener('click', () => {
         document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
@@ -1287,11 +815,6 @@ body.sb-resizing iframe { pointer-events: none; }
         document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
             sub.style.display = 'none';
         });
-    });
-
-    /* Recolher todas as pastas ao carregar */
-    document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
-        sub.style.display = 'none';
     });
 
     /* ── Sistema de abas ──────────────────── */
@@ -1553,73 +1076,6 @@ body.sb-resizing iframe { pointer-events: none; }
     };
     window.novaAba = novaAba;
 
-    /* ── Busca na sidebar ─────────────────────────────── */
-    const searchInput   = document.getElementById('sidebarSearchInput');
-    const searchClear   = document.getElementById('sidebarSearchClear');
-    const searchResults = document.getElementById('searchResults');
-    const treePanel     = document.getElementById('treePanel');
-
-    const TIPO_ICONE_BUSCA = {
-        nota:'📒', caderno:'📔', planilha:'📊', diagrama:'🔷',
-        jupyter:'⚗️', tarefa:'🎯', imagem:'🖼', pdf:'📄',
-        biblioteca:'📚', python:'🐍', sql:'🗄',
-    };
-
-    let searchTimer = null;
-
-    function mostrarArvore() {
-        searchResults.classList.remove('visivel');
-        treePanel.style.display = '';
-    }
-
-    function mostrarResultados(itens) {
-        treePanel.style.display = 'none';
-        searchResults.classList.add('visivel');
-
-        if (!itens.length) {
-            searchResults.innerHTML = '<div class="search-empty">Nenhuma nota encontrada</div>';
-            return;
-        }
-
-        searchResults.innerHTML = '';
-        itens.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'search-result-item';
-            const badgeClass = item.match === 'nome' ? 'badge-nome' : 'badge-conteudo';
-            const icone = TIPO_ICONE_BUSCA[item.tipo] || '📄';
-            div.innerHTML =
-                `<span>${icone}</span>` +
-                `<span class="search-result-nome">${item.nome}</span>` +
-                `<span class="search-result-badge ${badgeClass}">${item.match}</span>`;
-            div.addEventListener('click', () => {
-                window.navegarParaNota(item.id);
-            });
-            searchResults.appendChild(div);
-        });
-    }
-
-    searchInput.addEventListener('input', () => {
-        const q = searchInput.value.trim();
-        searchClear.classList.toggle('visivel', q.length > 0);
-
-        clearTimeout(searchTimer);
-        if (q.length < 2) { mostrarArvore(); return; }
-
-        searchTimer = setTimeout(() => {
-            fetch('/topicos/pesquisar?q=' + encodeURIComponent(q))
-                .then(r => r.json())
-                .then(mostrarResultados)
-                .catch(() => mostrarArvore());
-        }, 250);
-    });
-
-    searchClear.addEventListener('click', () => {
-        searchInput.value = '';
-        searchClear.classList.remove('visivel');
-        mostrarArvore();
-        searchInput.focus();
-    });
-
     /* ── Menu de contexto ───────────────── */
     const ctxMenu      = document.getElementById('ctxMenu');
     const ctxHeader    = document.getElementById('ctxHeader');
@@ -1718,12 +1174,7 @@ body.sb-resizing iframe { pointer-events: none; }
                     </div>
                 </form>
             </div>`);
-        setTimeout(() => {
-            modal.querySelector('input[name="nome"]').focus();
-            modal.querySelector('form').addEventListener('submit', function () {
-                this.querySelector('[type="submit"]').disabled = true;
-            });
-        }, 30);
+        setTimeout(() => modal.querySelector('input[name="nome"]').focus(), 30);
     }
 
     /* ── Modal: importar PDF ────────────── */
@@ -1731,7 +1182,7 @@ body.sb-resizing iframe { pointer-events: none; }
 
     function abrirPdfModal() {
         const paiLabel = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
-        const modal = criarModal(`
+        criarModal(`
             <div class="modal-box">
                 <p class="modal-subtitle">${paiLabel}</p>
                 <h3 class="modal-title">Importar PDF</h3>
@@ -1747,9 +1198,6 @@ body.sb-resizing iframe { pointer-events: none; }
                     </div>
                 </form>
             </div>`);
-        modal.querySelector('form').addEventListener('submit', function () {
-            this.querySelector('[type="submit"]').disabled = true;
-        });
     }
 
     /* ── Renomear item ──────────────────── */
@@ -1917,58 +1365,6 @@ body.sb-resizing iframe { pointer-events: none; }
         });
     }
 
-}());
-
-/* ── Upload de ícones customizados ──────── */
-(function () {
-    document.querySelectorAll('.ic-file-input').forEach(input => {
-        input.addEventListener('change', async function () {
-            const tipo = this.dataset.tipo;
-            const file = this.files[0];
-            if (!file) return;
-
-            const fd = new FormData();
-            fd.append('icone', file);
-
-            try {
-                const res = await fetch(`/icones/upload/${tipo}`, { method: 'POST', body: fd });
-                const data = await res.json();
-                if (data.ok && data.url) {
-                    const prev = document.getElementById(`icPrev-${tipo}`);
-                    if (prev) {
-                        const img = document.createElement('img');
-                        img.src = data.url + '?t=' + Date.now();
-                        img.className = 'ic-preview-img';
-                        img.id = `icPrev-${tipo}`;
-                        prev.replaceWith(img);
-                    }
-                    /* Atualizar ícones na árvore sem recarregar a página */
-                    document.querySelectorAll(`.topic-row[data-tipo="${tipo}"] .t-icon-file,
-                        .topic-row[data-tipo="${tipo}"] .t-icon-pasta,
-                        .topic-row[data-tipo="${tipo}"] .code-badge,
-                        .topic-row[data-tipo="${tipo}"] .t-icon-custom`).forEach(el => {
-                        const img = document.createElement('img');
-                        img.src = data.url + '?t=' + Date.now();
-                        img.className = 't-icon-custom';
-                        el.replaceWith(img);
-                    });
-                }
-            } catch (e) {
-                console.error('Erro ao enviar ícone:', e);
-            }
-            this.value = '';
-        });
-    });
-
-    document.getElementById('modalIcones').addEventListener('click', function (e) {
-        if (e.target === this) this.hidden = true;
-    });
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            const m = document.getElementById('modalIcones');
-            if (!m.hidden) m.hidden = true;
-        }
-    });
 }());
 </script>
 {% endblock %}
