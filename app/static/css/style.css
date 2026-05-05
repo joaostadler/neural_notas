@@ -142,6 +142,12 @@ body {
     border: 1px solid #fca5a5;
 }
 
+.alert-aviso {
+    background-color: #fef9c3;
+    color: #713f12;
+    border: 1px solid #fde047;
+}
+
 .alert-info {
     background-color: #dbeafe;
     color: #0c2d6b;

@@ -251,41 +251,49 @@ def _extrair_slides_pptx(conteudo_bytes):
     import json
     from io import BytesIO
     from pptx import Presentation
-    from pptx.enum.shapes import MSO_SHAPE_TYPE
 
     prs = Presentation(BytesIO(conteudo_bytes))
     slides = []
     for slide in prs.slides:
         s = {'titulo': '', 'linhas': [], 'imagens': [], 'notas': ''}
 
-        if slide.has_notes_slide:
-            nf = slide.notes_slide.notes_text_frame
-            if nf:
-                s['notas'] = nf.text.strip()
+        try:
+            if slide.has_notes_slide:
+                nf = slide.notes_slide.notes_text_frame
+                if nf:
+                    s['notas'] = nf.text.strip()
+        except Exception:
+            pass
 
         for shape in slide.shapes:
-            ph_idx = None
-            if hasattr(shape, 'placeholder_format') and shape.placeholder_format is not None:
-                ph_idx = shape.placeholder_format.idx
+            try:
+                ph_idx = None
+                if hasattr(shape, 'placeholder_format') and shape.placeholder_format is not None:
+                    ph_idx = shape.placeholder_format.idx
 
-            if shape.has_text_frame:
-                for para in shape.text_frame.paragraphs:
-                    t = para.text.strip()
-                    if not t:
-                        continue
-                    if ph_idx == 0:
-                        if not s['titulo']:
-                            s['titulo'] = t
-                    else:
-                        s['linhas'].append(t)
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        t = para.text.strip()
+                        if not t:
+                            continue
+                        if ph_idx == 0:
+                            if not s['titulo']:
+                                s['titulo'] = t
+                        else:
+                            s['linhas'].append(t)
 
-            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                try:
-                    ext = shape.image.ext.lower()
-                    b64 = base64.b64encode(shape.image.blob).decode()
-                    s['imagens'].append(f'data:image/{ext};base64,{b64}')
-                except Exception:
-                    pass
+                # Detecta imagem pelo atributo image (mais compatível que MSO_SHAPE_TYPE)
+                if hasattr(shape, 'image'):
+                    try:
+                        ext = (shape.image.ext or 'png').lower()
+                        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'):
+                            ext = 'png'
+                        b64 = base64.b64encode(shape.image.blob).decode()
+                        s['imagens'].append(f'data:image/{ext};base64,{b64}')
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         slides.append(s)
 
@@ -309,17 +317,25 @@ def importar_apresentacao():
         return redirect(url_for('main.dashboard'))
 
     nome_seguro = secure_filename(arquivo.filename)
-    if not nome_seguro.lower().endswith(('.ppt', '.pptx')):
+    ext_lower = os.path.splitext(nome_seguro)[1].lower()
+    if ext_lower not in ('.ppt', '.pptx'):
         flash('Somente arquivos PPT e PPTX são suportados.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    if ext_lower == '.ppt':
+        flash('Arquivos no formato antigo .PPT não são suportados. Converta para .PPTX no PowerPoint e tente novamente.', 'erro')
         return redirect(url_for('main.dashboard'))
 
     conteudo_bytes = arquivo.read()
     titulo = os.path.splitext(nome_seguro)[0] or 'Apresentação'
 
+    extracao_ok = True
     try:
         slides_json = _extrair_slides_pptx(conteudo_bytes)
-    except Exception:
+    except Exception as exc:
+        current_app.logger.warning('Falha ao extrair slides de "%s": %s', nome_seguro, exc)
         slides_json = '{"total":0,"slides":[]}'
+        extracao_ok = False
 
     topico = Topico(
         id_usuario=current_user.id,
@@ -339,8 +355,32 @@ def importar_apresentacao():
     ))
     db.session.commit()
 
-    flash('Apresentação importada com sucesso.', 'sucesso')
+    if extracao_ok:
+        flash('Apresentação importada com sucesso.', 'sucesso')
+    else:
+        flash('Arquivo salvo, mas os slides não puderam ser extraídos. Use o botão "Reprocessar" na tela da apresentação.', 'aviso')
     return redirect(url_for('main.dashboard'))
+
+
+@bp_main.route('/apresentacao/<int:id>/reprocessar', methods=['POST'])
+@login_required
+def reprocessar_apresentacao(id):
+    """Re-extrai slides do PPTX já armazenado no banco."""
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'apresentacao' or not topico.apresentacoes:
+        return jsonify({'erro': 'não encontrado'}), 404
+    apres = topico.apresentacoes
+    if not apres.conteudo:
+        return jsonify({'erro': 'arquivo não disponível'}), 404
+    try:
+        apres.slides_json = _extrair_slides_pptx(apres.conteudo)
+        db.session.commit()
+        import json
+        total = json.loads(apres.slides_json).get('total', 0)
+        return jsonify({'ok': True, 'total': total})
+    except Exception as exc:
+        current_app.logger.warning('Reprocessar apresentacao %d: %s', id, exc)
+        return jsonify({'ok': False, 'erro': str(exc)}), 500
 
 
 @bp_main.route('/apresentacao/<int:id>/arquivo')
@@ -896,7 +936,8 @@ def resumo():
         {**c, 'pct': round(c['total'] / max_cartoes * 100), 'is_last': i == n - 1}
         for i, c in enumerate(kanban_cols_raw)
     ]
-    total_cartoes = sum(c['total'] for c in kanban_cols)
+    total_cartoes      = sum(c['total'] for c in kanban_cols)
+    cartoes_concluidos = kanban_cols[-1]['total'] if kanban_cols else 0
 
     def _conta_prio(p):
         return (
@@ -993,6 +1034,7 @@ def resumo():
         'content/_resumo.html',
         kanban_cols=kanban_cols,
         total_cartoes=total_cartoes,
+        cartoes_concluidos=cartoes_concluidos,
         prio=prio,
         prio_total=prio_total,
         tarefas_periodo=tarefas_periodo,

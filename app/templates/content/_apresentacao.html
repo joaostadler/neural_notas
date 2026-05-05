@@ -468,7 +468,33 @@
 
     /* ── Inicialização ───────────────────────────────────────────── */
     if (total === 0) {
-        elInner.innerHTML = '<div class="apres-empty">Não foi possível extrair slides deste arquivo.</div>';
+        elInner.innerHTML = `
+            <div class="apres-empty" style="flex-direction:column;gap:12px;text-align:center">
+                <span>Não foi possível extrair slides deste arquivo.</span>
+                <button id="btnReprocessar" class="apres-nav-btn" style="background:#2563eb;color:#fff;border-color:#2563eb">
+                    🔄 Tentar reprocessar
+                </button>
+            </div>`;
+        document.getElementById('btnReprocessar').addEventListener('click', async () => {
+            const btn = document.getElementById('btnReprocessar');
+            btn.disabled = true;
+            btn.textContent = 'Processando…';
+            try {
+                const res = await fetch(`/apresentacao/${topicoId}/reprocessar`, {method:'POST'});
+                const d = await res.json();
+                if (d.ok && d.total > 0) {
+                    location.reload();
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Tentar reprocessar';
+                    elInner.querySelector('span').textContent =
+                        d.erro ? `Erro: ${d.erro}` : 'Nenhum slide encontrado no arquivo.';
+                }
+            } catch (e) {
+                btn.disabled = false;
+                btn.textContent = '🔄 Tentar reprocessar';
+            }
+        });
     } else {
         renderLista();
         renderSlide(slideAtual);
