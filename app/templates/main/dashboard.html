@@ -1238,12 +1238,7 @@ body.sb-resizing iframe { pointer-events: none; }
         btnReabrirSb.addEventListener('click', abrirSb);
     }
 
-    /* Sempre iniciar com sidebar fechada no desktop */
-    if (!isMobile()) {
-        wsShell.classList.add('sb-fechada');
-        btnSbToggle.textContent = '›';
-        if (btnReabrirSb) btnReabrirSb.style.display = 'flex';
-    }
+    /* Sidebar sempre aberta ao carregar */
 
     /* ── Redimensionar sidebar ───────────────── */
     (function() {
@@ -1292,6 +1287,11 @@ body.sb-resizing iframe { pointer-events: none; }
         document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
             sub.style.display = 'none';
         });
+    });
+
+    /* Recolher todas as pastas ao carregar */
+    document.querySelectorAll('#treePanel .topic-tree .topic-tree').forEach(sub => {
+        sub.style.display = 'none';
     });
 
     /* ── Sistema de abas ──────────────────── */

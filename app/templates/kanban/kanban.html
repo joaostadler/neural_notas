@@ -111,6 +111,8 @@
                     </div>
 
                     <div class="kb-card-actions">
+                        <button class="kb-icon-btn" title="Execuções"
+                                onclick="abrirExecucoes({{ cartao.id }}, '{{ cartao.titulo|e }}')">📋</button>
                         <button class="kb-icon-btn" title="Editar"
                                 onclick="abrirEditarCartao(this.closest('.kb-card'))">✎</button>
                         <button class="kb-icon-btn kb-icon-btn--danger" title="Excluir"
@@ -173,6 +175,29 @@
         <div class="kb-modal-actions">
             <button class="btn btn-secondary btn-sm" onclick="cancelarConclusao()">Cancelar</button>
             <button class="btn btn-primary btn-sm" onclick="confirmarConclusao()" style="background:#16a34a;border-color:#16a34a">✓ Confirmar conclusão</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Execuções -->
+<div id="modalExecucoes" class="kb-modal-backdrop" hidden>
+    <div class="kb-modal kb-modal--wide kb-modal--exec">
+        <div class="kb-exec-hdr">
+            <div>
+                <p class="kb-modal-eyebrow">📋 Execuções</p>
+                <h3 class="kb-modal-title" id="execCardTitulo">-</h3>
+            </div>
+            <button class="kb-exec-close" onclick="fecharExecucoes()">×</button>
+        </div>
+        <div class="kb-exec-nova">
+            <textarea id="execTexto" placeholder="Descreva o que foi executado, resultado, observação… (Ctrl+Enter para salvar)" rows="3"></textarea>
+            <button class="btn btn-primary btn-sm" id="btnAdicionarExec" onclick="adicionarExecucao()">+ Registrar</button>
+        </div>
+        <div id="execLista" class="exec-lista">
+            <div class="exec-loading">Carregando...</div>
+        </div>
+        <div class="kb-modal-actions kb-exec-footer">
+            <button class="btn btn-secondary btn-sm" onclick="fecharExecucoes()">Fechar</button>
         </div>
     </div>
 </div>
@@ -820,6 +845,76 @@
 .kb-prio-btn[data-prio="baixa"].ativo { border-color: #22c55e; color: #16a34a; background: #f0fdf4; }
 .kb-prio-btn[data-prio="media"].ativo { border-color: #f59e0b; color: #d97706; background: #fffbeb; }
 .kb-prio-btn[data-prio="alta"].ativo  { border-color: #ef4444; color: #dc2626; background: #fef2f2; }
+
+/* ── Modal Execuções ───────────────────────────────────────────────── */
+.kb-modal--exec {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+    overflow: hidden;
+}
+.kb-exec-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    flex-shrink: 0;
+}
+.kb-exec-close {
+    background: none; border: none; font-size: 22px;
+    color: #94a3b8; cursor: pointer; padding: 0 4px; line-height: 1;
+    transition: color .12s;
+}
+.kb-exec-close:hover { color: #1e293b; }
+.kb-exec-nova {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 14px; flex-shrink: 0;
+}
+.kb-exec-nova textarea {
+    width: 100%; resize: vertical; min-height: 72px;
+    padding: 8px 10px; border: 1.5px solid #e2e8f0;
+    border-radius: 6px; font-size: 13px; font-family: inherit;
+    outline: none; transition: border-color .15s; box-sizing: border-box;
+}
+.kb-exec-nova textarea:focus { border-color: #2563eb; }
+.exec-lista {
+    flex: 1; overflow-y: auto; display: flex;
+    flex-direction: column; gap: 8px; min-height: 80px;
+    padding-right: 2px;
+}
+.exec-lista::-webkit-scrollbar { width: 4px; }
+.exec-lista::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 2px; }
+.exec-loading, .exec-vazio {
+    color: #94a3b8; font-size: 13px; text-align: center; padding: 24px 0;
+}
+.exec-item {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 8px; padding: 10px 12px;
+    display: flex; gap: 10px; align-items: flex-start;
+    transition: opacity .15s;
+}
+.exec-item.concluida { opacity: .55; }
+.exec-check {
+    width: 15px; height: 15px; margin-top: 3px;
+    cursor: pointer; flex-shrink: 0; accent-color: #16a34a;
+}
+.exec-corpo { flex: 1; min-width: 0; }
+.exec-texto {
+    font-size: 13px; color: #1e293b; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-word;
+}
+.exec-item.concluida .exec-texto { text-decoration: line-through; color: #94a3b8; }
+.exec-data { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.exec-del {
+    background: none; border: none; color: #cbd5e1;
+    cursor: pointer; font-size: 13px; padding: 0 2px;
+    flex-shrink: 0; transition: color .12s; line-height: 1;
+}
+.exec-del:hover { color: #ef4444; }
+.kb-exec-footer {
+    border-top: 1px solid #e2e8f0; margin-top: 12px;
+    padding-top: 12px; flex-shrink: 0;
+}
 </style>
 
 
@@ -1273,6 +1368,8 @@ function injetarCartao(colId, cartao) {
             </div>
         </div>
         <div class="kb-card-actions">
+            <button class="kb-icon-btn" title="Execuções"
+                    onclick="abrirExecucoes(${cartao.id}, '${esc(cartao.titulo)}')">📋</button>
             <button class="kb-icon-btn" title="Editar"
                     onclick="abrirEditarCartao(this.closest('.kb-card'))">✎</button>
             <button class="kb-icon-btn kb-icon-btn--danger" title="Excluir"
@@ -1508,6 +1605,113 @@ function esc(str) {
         .replace(/'/g, '&#39;');
 }
 
+}());
+
+/* ═══ Modal Execuções ══════════════════════════════════════════════════ */
+(function () {
+    let execCartaoId = null;
+
+    window.abrirExecucoes = async function (cartaoId, titulo) {
+        execCartaoId = cartaoId;
+        document.getElementById('execCardTitulo').textContent = titulo;
+        document.getElementById('execTexto').value = '';
+        document.getElementById('modalExecucoes').hidden = false;
+        await carregarExecucoes();
+        setTimeout(() => document.getElementById('execTexto').focus(), 50);
+    };
+
+    window.fecharExecucoes = function () {
+        document.getElementById('modalExecucoes').hidden = true;
+        execCartaoId = null;
+    };
+
+    async function carregarExecucoes() {
+        const lista = document.getElementById('execLista');
+        lista.innerHTML = '<div class="exec-loading">Carregando...</div>';
+        try {
+            const res = await fetch(`/kanban/cartoes/${execCartaoId}/execucoes`);
+            const data = await res.json();
+            renderExecucoes(data);
+        } catch {
+            lista.innerHTML = '<div class="exec-vazio">Erro ao carregar execuções.</div>';
+        }
+    }
+
+    function renderExecucoes(items) {
+        const lista = document.getElementById('execLista');
+        if (!items.length) {
+            lista.innerHTML = '<div class="exec-vazio">Nenhuma execução registrada ainda.</div>';
+            return;
+        }
+        lista.innerHTML = items.map(e => `
+            <div class="exec-item${e.concluida ? ' concluida' : ''}" data-exec-id="${e.id}">
+                <input type="checkbox" class="exec-check" ${e.concluida ? 'checked' : ''}
+                       onchange="toggleExecucao(${e.id}, this)">
+                <div class="exec-corpo">
+                    <div class="exec-texto">${esc(e.texto)}</div>
+                    <div class="exec-data">${e.criado_em}</div>
+                </div>
+                <button class="exec-del" title="Excluir" onclick="excluirExecucao(${e.id})">✕</button>
+            </div>
+        `).join('');
+    }
+
+    window.adicionarExecucao = async function () {
+        const texto = document.getElementById('execTexto').value.trim();
+        if (!texto || !execCartaoId) return;
+        const btn = document.getElementById('btnAdicionarExec');
+        btn.disabled = true;
+        try {
+            const res = await fetch(`/kanban/cartoes/${execCartaoId}/execucoes`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({texto}),
+            });
+            const data = await res.json();
+            if (data.id) {
+                document.getElementById('execTexto').value = '';
+                await carregarExecucoes();
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    window.excluirExecucao = async function (id) {
+        if (!confirm('Excluir esta execução?')) return;
+        const res = await fetch(`/kanban/execucoes/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.ok) {
+            document.querySelector(`.exec-item[data-exec-id="${id}"]`)?.remove();
+            if (!document.querySelector('.exec-item')) {
+                document.getElementById('execLista').innerHTML =
+                    '<div class="exec-vazio">Nenhuma execução registrada ainda.</div>';
+            }
+        }
+    };
+
+    window.toggleExecucao = async function (id, checkbox) {
+        const item = checkbox.closest('.exec-item');
+        const res = await fetch(`/kanban/execucoes/${id}/toggle`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) {
+            item.classList.toggle('concluida', data.concluida);
+            checkbox.checked = data.concluida;
+        } else {
+            checkbox.checked = !checkbox.checked;
+        }
+    };
+
+    document.getElementById('execTexto').addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            adicionarExecucao();
+        }
+    });
+
+    document.getElementById('modalExecucoes').addEventListener('click', e => {
+        if (e.target === e.currentTarget) fecharExecucoes();
+    });
 }());
 </script>
 

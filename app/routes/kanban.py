@@ -7,7 +7,7 @@ from uuid import uuid4
 from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from models import CartaoKanban, ColunaKanban, HistoricoEtapas, db
+from models import CartaoKanban, ColunaKanban, ExecucaoCartao, HistoricoEtapas, db
 
 bp_kanban = Blueprint('kanban', __name__, url_prefix='/kanban')
 
@@ -301,6 +301,76 @@ def upload_imagem_kanban():
 
     caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
     return jsonify({'url': f'/static/{caminho_rel}'})
+
+
+@bp_kanban.route('/cartoes/<int:id>/execucoes', methods=['GET'])
+@login_required
+def listar_execucoes(id):
+    cartao = _cartao_do_usuario(id)
+    if not cartao:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    execucoes = sorted(cartao.execucoes, key=lambda e: e.criado_em, reverse=True)
+    return jsonify([{
+        'id': e.id,
+        'texto': e.texto,
+        'concluida': e.concluida,
+        'criado_em': e.criado_em.strftime('%d/%m/%Y %H:%M'),
+    } for e in execucoes])
+
+
+@bp_kanban.route('/cartoes/<int:id>/execucoes', methods=['POST'])
+@login_required
+def criar_execucao(id):
+    cartao = _cartao_do_usuario(id)
+    if not cartao:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    texto = (dados.get('texto') or '').strip()
+    if not texto:
+        return jsonify({'erro': 'Texto obrigatório'}), 400
+    execucao = ExecucaoCartao(id_cartao=id, texto=texto)
+    db.session.add(execucao)
+    db.session.commit()
+    return jsonify({
+        'id': execucao.id,
+        'texto': execucao.texto,
+        'concluida': execucao.concluida,
+        'criado_em': execucao.criado_em.strftime('%d/%m/%Y %H:%M'),
+    })
+
+
+@bp_kanban.route('/execucoes/<int:id>', methods=['DELETE'])
+@login_required
+def excluir_execucao(id):
+    execucao = (
+        ExecucaoCartao.query
+        .join(CartaoKanban)
+        .join(ColunaKanban)
+        .filter(ExecucaoCartao.id == id, ColunaKanban.id_usuario == current_user.id)
+        .first()
+    )
+    if not execucao:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    db.session.delete(execucao)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@bp_kanban.route('/execucoes/<int:id>/toggle', methods=['POST'])
+@login_required
+def toggle_execucao(id):
+    execucao = (
+        ExecucaoCartao.query
+        .join(CartaoKanban)
+        .join(ColunaKanban)
+        .filter(ExecucaoCartao.id == id, ColunaKanban.id_usuario == current_user.id)
+        .first()
+    )
+    if not execucao:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    execucao.concluida = not execucao.concluida
+    db.session.commit()
+    return jsonify({'ok': True, 'concluida': execucao.concluida})
 
 
 @bp_kanban.route('/reordenar', methods=['POST'])
