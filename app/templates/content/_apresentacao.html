@@ -1,0 +1,479 @@
+{% set slides_data = conteudo.slides_json | tojson if conteudo else '{"total":0,"slides":[]}' %}
+<div class="apres-wrap" data-topico-id="{{ topico.id }}"
+     data-slide-inicial="{{ conteudo.slide_atual if conteudo else 1 }}">
+
+  <header class="doc-hdr">
+    <div class="doc-hdr-left">
+      <span class="doc-badge" style="color:#f97316">PPT</span>
+      <h1 class="doc-titulo">{{ topico.nome }}</h1>
+    </div>
+    <div class="apres-hdr-actions">
+      <button class="apres-btn-comentar" id="btnModoComent" title="Adicionar comentário">
+        💬 Comentar
+      </button>
+      {% if conteudo and conteudo.conteudo %}
+      <a class="btn-open-pdf" href="/apresentacao/{{ topico.id }}/arquivo">⬇ Download</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="apres-body">
+
+    <!-- Painel lateral: lista de slides -->
+    <aside class="apres-sidebar" id="apresSidebar">
+      <div class="apres-slide-list" id="apresSlideList"></div>
+    </aside>
+
+    <!-- Área principal -->
+    <div class="apres-main">
+
+      <div class="apres-stage-wrap">
+        <!-- Canvas do slide -->
+        <div class="apres-stage" id="apresStage">
+          <div class="apres-slide-canvas" id="apresCanvas">
+            <div class="apres-slide-inner" id="apresSlideInner"></div>
+          </div>
+          <!-- Overlay de comentários -->
+          <div class="apres-comments-layer" id="apresCommentsLayer"></div>
+          <!-- Popup flutuante para novo comentário -->
+          <div class="apres-new-comment-popup" id="apresNewCommentPopup" hidden>
+            <div class="ancp-body">
+              <div class="ancp-color-row" id="ancpColors"></div>
+              <textarea class="ancp-textarea" id="ancpText" placeholder="Digite o comentário…" rows="3"></textarea>
+              <div class="ancp-actions">
+                <button class="ancp-btn-cancel" id="ancpCancel">Cancelar</button>
+                <button class="ancp-btn-add" id="ancpAdd">Adicionar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navegação -->
+      <div class="apres-nav">
+        <button class="apres-nav-btn" id="apresPrev">&#8592; Anterior</button>
+        <span class="apres-nav-label">
+          <span id="apresSlideNum">1</span> / <span id="apresSlideTotal">1</span>
+        </span>
+        <button class="apres-nav-btn" id="apresNext">Próxima &#8594;</button>
+      </div>
+
+      <!-- Notas do slide -->
+      <div class="apres-notes" id="apresNotes" hidden>
+        <span class="apres-notes-label">📝 Notas:</span>
+        <span id="apresNotesText"></span>
+      </div>
+
+    </div><!-- /apres-main -->
+  </div><!-- /apres-body -->
+
+</div>
+
+<style>
+/* ── Layout geral ─────────────────────────────────────────────────── */
+.apres-wrap{display:flex;flex-direction:column;height:100%;background:#fff;overflow:hidden}
+.doc-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:12px}
+.doc-hdr-left{display:flex;align-items:baseline;gap:10px;min-width:0}
+.doc-badge{font-size:11px;font-weight:800;flex-shrink:0}
+.doc-titulo{font-size:20px;font-weight:700;color:#0f172a;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.apres-hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.btn-open-pdf{font-size:12px;color:#2563eb;text-decoration:none;padding:5px 10px;border:1px solid #bfdbfe;border-radius:6px;white-space:nowrap;transition:all .15s}
+.btn-open-pdf:hover{background:#eff6ff}
+
+/* ── Body: sidebar + main ─────────────────────────────────────────── */
+.apres-body{display:flex;flex:1;min-height:0;overflow:hidden}
+
+/* ── Sidebar de slides ───────────────────────────────────────────── */
+.apres-sidebar{width:160px;flex-shrink:0;border-right:1px solid #e2e8f0;overflow-y:auto;background:#f8fafc}
+.apres-slide-list{display:flex;flex-direction:column;gap:6px;padding:8px}
+.apres-slide-thumb{background:#fff;border:2px solid #e2e8f0;border-radius:6px;padding:8px 6px;cursor:pointer;transition:border-color .15s,background .15s;display:flex;flex-direction:column;gap:4px}
+.apres-slide-thumb:hover{border-color:#94a3b8;background:#f1f5f9}
+.apres-slide-thumb.ativo{border-color:#2563eb;background:#eff6ff}
+.ast-num{font-size:10px;color:#94a3b8;font-weight:600}
+.ast-titulo{font-size:11px;color:#334155;font-weight:500;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ── Área principal ──────────────────────────────────────────────── */
+.apres-main{flex:1;min-width:0;display:flex;flex-direction:column;background:#64748b;overflow:hidden}
+
+/* ── Stage (contém canvas + overlay) ─────────────────────────────── */
+.apres-stage-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden}
+.apres-stage{position:relative;display:inline-block;line-height:0}
+.apres-slide-canvas{background:#fff;box-shadow:0 8px 32px rgba(0,0,0,.35);border-radius:4px;overflow:hidden;aspect-ratio:16/9;width:min(100%,860px)}
+.apres-slide-inner{width:100%;height:100%;padding:32px 40px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+
+/* ── Conteúdo do slide ───────────────────────────────────────────── */
+.slide-titulo{font-size:clamp(16px,2.8vw,32px);font-weight:700;color:#0f172a;line-height:1.25;border-bottom:3px solid #2563eb;padding-bottom:10px;flex-shrink:0}
+.slide-conteudo{flex:1;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.slide-linha{font-size:clamp(12px,1.6vw,18px);color:#334155;line-height:1.5;padding-left:18px;position:relative}
+.slide-linha::before{content:"•";position:absolute;left:4px;color:#2563eb}
+.slide-imagens{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.slide-img{max-height:120px;max-width:46%;border-radius:4px;object-fit:contain}
+.slide-vazio{color:#94a3b8;font-size:14px;align-self:center;margin:auto}
+
+/* ── Overlay de comentários ──────────────────────────────────────── */
+.apres-comments-layer{position:absolute;inset:0;pointer-events:none}
+.apres-comments-layer.modo-comentar{cursor:crosshair;pointer-events:all}
+.apres-pin{position:absolute;width:28px;height:28px;border-radius:50%;border:3px solid rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#000;cursor:pointer;pointer-events:all;transform:translate(-50%,-50%);transition:transform .1s,box-shadow .1s;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.apres-pin:hover{transform:translate(-50%,-50%) scale(1.2);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.apres-pin-popup{position:absolute;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:20;pointer-events:all;white-space:normal;line-height:1.5;font-size:13px}
+.apres-pin-popup .app-texto{color:#1e293b;margin-bottom:6px}
+.apres-pin-popup .app-meta{font-size:11px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center}
+.apres-pin-popup .app-del{background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1}
+.apres-pin-popup .app-del:hover{color:#b91c1c}
+
+/* ── Popup novo comentário ───────────────────────────────────────── */
+.apres-new-comment-popup{position:absolute;z-index:30;pointer-events:all}
+.ancp-body{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);width:240px}
+.ancp-color-row{display:flex;gap:6px;margin-bottom:8px}
+.ancp-color-dot{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .1s}
+.ancp-color-dot:hover{transform:scale(1.2)}
+.ancp-color-dot.sel{border-color:#0f172a;transform:scale(1.15)}
+.ancp-textarea{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;font-size:13px;resize:none;outline:none;box-sizing:border-box;font-family:inherit}
+.ancp-textarea:focus{border-color:#2563eb}
+.ancp-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.ancp-btn-cancel,.ancp-btn-add{font-size:12px;padding:5px 12px;border-radius:6px;border:none;cursor:pointer;font-family:inherit}
+.ancp-btn-cancel{background:#f1f5f9;color:#475569}
+.ancp-btn-cancel:hover{background:#e2e8f0}
+.ancp-btn-add{background:#2563eb;color:#fff}
+.ancp-btn-add:hover{background:#1d4ed8}
+
+/* ── Navegação ───────────────────────────────────────────────────── */
+.apres-nav{display:flex;align-items:center;justify-content:center;gap:20px;padding:10px 20px;background:#475569;flex-shrink:0}
+.apres-nav-btn{font-size:13px;padding:6px 16px;border-radius:6px;border:1px solid #94a3b8;background:transparent;color:#e2e8f0;cursor:pointer;transition:background .15s,color .15s}
+.apres-nav-btn:hover:not(:disabled){background:#64748b;color:#fff}
+.apres-nav-btn:disabled{opacity:.35;cursor:default}
+.apres-nav-label{font-size:14px;color:#e2e8f0;font-weight:500;min-width:70px;text-align:center}
+
+/* ── Botão comentar ─────────────────────────────────────────────── */
+.apres-btn-comentar{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;transition:all .15s}
+.apres-btn-comentar:hover{border-color:#f97316;color:#f97316}
+.apres-btn-comentar.ativo{background:#fff7ed;border-color:#f97316;color:#f97316;font-weight:600}
+
+/* ── Notas ──────────────────────────────────────────────────────── */
+.apres-notes{background:#fefce8;border-top:1px solid #fef08a;padding:8px 20px;font-size:13px;color:#713f12;flex-shrink:0}
+.apres-notes-label{font-weight:600;margin-right:6px}
+
+/* ── Slide vazio ────────────────────────────────────────────────── */
+.apres-empty{display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:16px}
+</style>
+
+<script>
+(function () {
+    const topicoId  = document.querySelector('.apres-wrap').dataset.topicoId;
+    const slideInicial = parseInt(document.querySelector('.apres-wrap').dataset.slideInicial) || 1;
+
+    /* Dados dos slides vindos do servidor */
+    const SLIDES_RAW = {{ conteudo.slides_json | safe if conteudo and conteudo.slides_json else '{"total":0,"slides":[]}' }};
+    const slides = SLIDES_RAW.slides || [];
+    const total  = SLIDES_RAW.total  || 0;
+
+    let slideAtual = Math.min(Math.max(slideInicial, 1), total || 1);
+    let modoComment = false;
+    let pendingX = 0, pendingY = 0;
+    let corSelecionada = '#fbbf24';
+    let comentariosPorSlide = {};  /* cache: slide_num -> [comentário] */
+
+    /* ── Elementos ───────────────────────────────────────────────── */
+    const elCanvas    = document.getElementById('apresCanvas');
+    const elInner     = document.getElementById('apresSlideInner');
+    const elLayer     = document.getElementById('apresCommentsLayer');
+    const elList      = document.getElementById('apresSlideList');
+    const elNum       = document.getElementById('apresSlideNum');
+    const elTotal     = document.getElementById('apresSlideTotal');
+    const elPrev      = document.getElementById('apresPrev');
+    const elNext      = document.getElementById('apresNext');
+    const elNotes     = document.getElementById('apresNotes');
+    const elNotesText = document.getElementById('apresNotesText');
+    const elBtnComent = document.getElementById('btnModoComent');
+    const elPopup     = document.getElementById('apresNewCommentPopup');
+    const elAncpText  = document.getElementById('ancpText');
+    const elAncpAdd   = document.getElementById('ancpAdd');
+    const elAncpCancel= document.getElementById('ancpCancel');
+
+    /* ── Cores disponíveis para balões ───────────────────────────── */
+    const CORES = ['#fbbf24','#ef4444','#3b82f6','#22c55e','#a855f7','#ec4899'];
+
+    function initColorPicker() {
+        const row = document.getElementById('ancpColors');
+        CORES.forEach(cor => {
+            const dot = document.createElement('div');
+            dot.className = 'ancp-color-dot' + (cor === corSelecionada ? ' sel' : '');
+            dot.style.background = cor;
+            dot.title = cor;
+            dot.addEventListener('click', () => {
+                corSelecionada = cor;
+                row.querySelectorAll('.ancp-color-dot').forEach(d => d.classList.remove('sel'));
+                dot.classList.add('sel');
+            });
+            row.appendChild(dot);
+        });
+    }
+    initColorPicker();
+
+    /* ── Render slide ────────────────────────────────────────────── */
+    function renderSlide(idx) {
+        elInner.innerHTML = '';
+        if (!slides.length) {
+            elInner.innerHTML = '<div class="apres-empty">Nenhum slide encontrado no arquivo.</div>';
+            return;
+        }
+        const s = slides[idx - 1];
+        if (!s) return;
+
+        if (s.titulo) {
+            const t = document.createElement('div');
+            t.className = 'slide-titulo';
+            t.textContent = s.titulo;
+            elInner.appendChild(t);
+        }
+
+        if (s.linhas && s.linhas.length) {
+            const cont = document.createElement('div');
+            cont.className = 'slide-conteudo';
+            s.linhas.forEach(linha => {
+                const l = document.createElement('div');
+                l.className = 'slide-linha';
+                l.textContent = linha;
+                cont.appendChild(l);
+            });
+            elInner.appendChild(cont);
+        }
+
+        if (s.imagens && s.imagens.length) {
+            const imgWrap = document.createElement('div');
+            imgWrap.className = 'slide-imagens';
+            s.imagens.forEach(src => {
+                const img = document.createElement('img');
+                img.className = 'slide-img';
+                img.src = src;
+                img.alt = '';
+                imgWrap.appendChild(img);
+            });
+            elInner.appendChild(imgWrap);
+        }
+
+        if (!s.titulo && !s.linhas?.length && !s.imagens?.length) {
+            const vz = document.createElement('div');
+            vz.className = 'slide-vazio';
+            vz.textContent = 'Slide sem conteúdo de texto';
+            elInner.appendChild(vz);
+        }
+
+        /* Notas */
+        if (s.notas) {
+            elNotesText.textContent = s.notas;
+            elNotes.hidden = false;
+        } else {
+            elNotes.hidden = true;
+        }
+    }
+
+    /* ── Render lista lateral ────────────────────────────────────── */
+    function renderLista() {
+        elList.innerHTML = '';
+        slides.forEach((s, i) => {
+            const n = i + 1;
+            const th = document.createElement('div');
+            th.className = 'apres-slide-thumb' + (n === slideAtual ? ' ativo' : '');
+            th.dataset.n = n;
+            th.innerHTML = `<span class="ast-num">${n}</span>
+                            <span class="ast-titulo">${escHtml(s.titulo || '(sem título)')}</span>`;
+            th.addEventListener('click', () => irParaSlide(n));
+            elList.appendChild(th);
+        });
+        elTotal.textContent = total;
+    }
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    /* ── Navegação ───────────────────────────────────────────────── */
+    function irParaSlide(n) {
+        if (n < 1 || n > total) return;
+        fecharPopup();
+        slideAtual = n;
+        renderSlide(slideAtual);
+        atualizarNav();
+        carregarComentarios(slideAtual);
+        salvarProgresso();
+    }
+
+    function atualizarNav() {
+        elNum.textContent  = slideAtual;
+        elTotal.textContent = total;
+        elPrev.disabled = slideAtual <= 1;
+        elNext.disabled = slideAtual >= total;
+        elList.querySelectorAll('.apres-slide-thumb').forEach(el => {
+            el.classList.toggle('ativo', parseInt(el.dataset.n) === slideAtual);
+        });
+        const ativo = elList.querySelector('.apres-slide-thumb.ativo');
+        if (ativo) ativo.scrollIntoView({block:'nearest'});
+    }
+
+    elPrev.addEventListener('click', () => irParaSlide(slideAtual - 1));
+    elNext.addEventListener('click', () => irParaSlide(slideAtual + 1));
+
+    document.addEventListener('keydown', e => {
+        if (document.activeElement.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') irParaSlide(slideAtual + 1);
+        if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   irParaSlide(slideAtual - 1);
+    });
+
+    /* ── Salvar progresso ────────────────────────────────────────── */
+    function salvarProgresso() {
+        fetch(`/apresentacao/${topicoId}/salvar`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slide_atual: slideAtual}),
+        });
+    }
+
+    /* ── Modo comentário ─────────────────────────────────────────── */
+    elBtnComent.addEventListener('click', () => {
+        modoComment = !modoComment;
+        elBtnComent.classList.toggle('ativo', modoComment);
+        elBtnComent.title = modoComment ? 'Clique no slide para posicionar um comentário' : 'Adicionar comentário';
+        elLayer.classList.toggle('modo-comentar', modoComment);
+        if (!modoComment) fecharPopup();
+    });
+
+    elLayer.addEventListener('click', e => {
+        if (!modoComment) return;
+        if (e.target.closest('.apres-pin')) return;
+        fecharPopup();
+
+        const rect = elCanvas.getBoundingClientRect();
+        pendingX = ((e.clientX - rect.left) / rect.width)  * 100;
+        pendingY = ((e.clientY - rect.top)  / rect.height) * 100;
+
+        elPopup.style.left = `${Math.min(pendingX, 70)}%`;
+        elPopup.style.top  = `${Math.min(pendingY + 4, 80)}%`;
+        elAncpText.value   = '';
+        elPopup.hidden = false;
+        setTimeout(() => elAncpText.focus(), 30);
+    });
+
+    elAncpCancel.addEventListener('click', fecharPopup);
+
+    elAncpAdd.addEventListener('click', async () => {
+        const texto = elAncpText.value.trim();
+        if (!texto) return;
+        elAncpAdd.disabled = true;
+        try {
+            const res = await fetch(`/apresentacao/${topicoId}/comentarios`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    slide_num: slideAtual,
+                    texto,
+                    pos_x: pendingX,
+                    pos_y: pendingY,
+                    cor: corSelecionada,
+                }),
+            });
+            const c = await res.json();
+            if (c.id) {
+                if (!comentariosPorSlide[slideAtual]) comentariosPorSlide[slideAtual] = [];
+                comentariosPorSlide[slideAtual].push(c);
+                renderComentarios(slideAtual);
+                fecharPopup();
+                modoComment = false;
+                elBtnComent.classList.remove('ativo');
+                elLayer.classList.remove('modo-comentar');
+            }
+        } finally {
+            elAncpAdd.disabled = false;
+        }
+    });
+
+    elAncpText.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); elAncpAdd.click(); }
+        if (e.key === 'Escape') fecharPopup();
+    });
+
+    function fecharPopup() { elPopup.hidden = true; }
+
+    /* ── Comentários ─────────────────────────────────────────────── */
+    async function carregarComentarios(n) {
+        if (comentariosPorSlide[n] !== undefined) {
+            renderComentarios(n);
+            return;
+        }
+        const res = await fetch(`/apresentacao/${topicoId}/comentarios?slide=${n}`);
+        comentariosPorSlide[n] = await res.json();
+        renderComentarios(n);
+    }
+
+    function renderComentarios(n) {
+        elLayer.querySelectorAll('.apres-pin').forEach(p => p.remove());
+        const lista = comentariosPorSlide[n] || [];
+        lista.forEach((c, i) => adicionarPin(c, i + 1));
+    }
+
+    function adicionarPin(c, num) {
+        const pin = document.createElement('div');
+        pin.className = 'apres-pin';
+        pin.dataset.id = c.id;
+        pin.style.left       = `${c.pos_x}%`;
+        pin.style.top        = `${c.pos_y}%`;
+        pin.style.background = c.cor;
+        pin.textContent = num;
+
+        const popup = document.createElement('div');
+        popup.className = 'apres-pin-popup';
+        popup.hidden = true;
+        popup.style.bottom = c.pos_y > 70 ? '36px' : 'auto';
+        popup.style.top    = c.pos_y > 70 ? 'auto' : '36px';
+        popup.style.left   = c.pos_x > 65 ? 'auto' : '0';
+        popup.style.right  = c.pos_x > 65 ? '0'    : 'auto';
+        popup.innerHTML = `
+            <div class="app-texto">${escHtml(c.texto)}</div>
+            <div class="app-meta">
+                <span>${c.criado_em}</span>
+                <button class="app-del" title="Excluir comentário">✕</button>
+            </div>`;
+
+        popup.querySelector('.app-del').addEventListener('click', async e => {
+            e.stopPropagation();
+            if (!confirm('Excluir este comentário?')) return;
+            const res = await fetch(`/apresentacao/${topicoId}/comentarios/${c.id}`, {method:'DELETE'});
+            const d = await res.json();
+            if (d.ok) {
+                comentariosPorSlide[slideAtual] = (comentariosPorSlide[slideAtual] || [])
+                    .filter(x => x.id !== c.id);
+                renderComentarios(slideAtual);
+            }
+        });
+
+        pin.appendChild(popup);
+
+        pin.addEventListener('click', e => {
+            if (modoComment) return;
+            e.stopPropagation();
+            const aberto = !popup.hidden;
+            elLayer.querySelectorAll('.apres-pin-popup').forEach(p => { p.hidden = true; });
+            popup.hidden = aberto;
+        });
+
+        elLayer.appendChild(pin);
+    }
+
+    /* Fechar popups de pin ao clicar fora */
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.apres-pin') && !e.target.closest('.apres-new-comment-popup')) {
+            elLayer.querySelectorAll('.apres-pin-popup').forEach(p => { p.hidden = true; });
+        }
+    });
+
+    /* ── Inicialização ───────────────────────────────────────────── */
+    if (total === 0) {
+        elInner.innerHTML = '<div class="apres-empty">Não foi possível extrair slides deste arquivo.</div>';
+    } else {
+        renderLista();
+        renderSlide(slideAtual);
+        atualizarNav();
+        carregarComentarios(slideAtual);
+    }
+}());
+</script>

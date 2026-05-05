@@ -211,11 +211,24 @@
             <label>Descrição</label>
             <div class="kb-editor-toolbar" id="kbEditorToolbar">
                 <button type="button" class="kb-tb-btn" id="btnTbNegrito" title="Negrito (Ctrl+B)"><b>B</b></button>
+                <button type="button" class="kb-tb-btn" id="btnTbLink" title="Inserir link (Ctrl+K)">🔗</button>
                 <button type="button" class="kb-tb-btn" id="btnTbImagem" title="Inserir imagem">🖼</button>
                 <button type="button" class="kb-tb-btn" id="btnTbTabela" title="Inserir tabela">⊞</button>
+
+                <!-- Popup de inserção de link -->
+                <div id="kbLinkPopup" class="kb-link-popup" hidden>
+                    <label class="kb-link-label">URL</label>
+                    <input id="kbLinkUrl" type="url" class="kb-link-input" placeholder="https://">
+                    <label class="kb-link-label">Texto exibido</label>
+                    <input id="kbLinkText" type="text" class="kb-link-input" placeholder="Texto do link">
+                    <div class="kb-link-actions">
+                        <button type="button" class="kb-link-btn-cancel" id="kbLinkCancel">Cancelar</button>
+                        <button type="button" class="kb-link-btn-ok" id="kbLinkOk">Inserir</button>
+                    </div>
+                </div>
             </div>
             <div id="inputCartaoDescricao" class="kb-editor" contenteditable="true"
-                 data-placeholder="Descrição… suporta imagens e tabelas"></div>
+                 data-placeholder="Descrição… suporta links, imagens e tabelas"></div>
             <input type="file" id="uploadImagemKanban" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
         </div>
         <div class="form-group">
@@ -616,7 +629,64 @@
     border: 1px solid #dbe4ef;
     border-bottom: none;
     border-radius: 6px 6px 0 0;
+    position: relative;
 }
+
+/* Popup de link */
+.kb-link-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 200;
+    background: #fff;
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+    width: 280px;
+    flex-direction: column;
+    gap: 5px;
+}
+.kb-link-popup:not([hidden]) { display: flex; }
+.kb-link-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 1px;
+}
+.kb-link-input {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+}
+.kb-link-input:focus { border-color: #2563eb; }
+.kb-link-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+.kb-link-btn-cancel, .kb-link-btn-ok {
+    font-size: 12px;
+    padding: 5px 14px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+.kb-link-btn-cancel { background: #f1f5f9; color: #475569; }
+.kb-link-btn-cancel:hover { background: #e2e8f0; }
+.kb-link-btn-ok { background: #2563eb; color: #fff; }
+.kb-link-btn-ok:hover { background: #1d4ed8; }
+
+/* Links dentro do editor */
+.kb-editor a { color: #2563eb; text-decoration: underline; cursor: pointer; }
 
 .kb-tb-btn {
     background: transparent;
@@ -1419,6 +1489,94 @@ document.getElementById('btnTbNegrito').addEventListener('click', () => {
     document.getElementById('inputCartaoDescricao').focus();
     document.execCommand('bold', false, null);
 });
+
+/* ── Botão de link ──────────────────────────────────────────────── */
+(function () {
+    const btnLink    = document.getElementById('btnTbLink');
+    const popup      = document.getElementById('kbLinkPopup');
+    const inputUrl   = document.getElementById('kbLinkUrl');
+    const inputText  = document.getElementById('kbLinkText');
+    const btnOk      = document.getElementById('kbLinkOk');
+    const btnCancel  = document.getElementById('kbLinkCancel');
+    let   savedRange = null;
+
+    function abrirPopup() {
+        const sel = window.getSelection();
+        savedRange = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+        const textoSelecionado = sel.toString().trim();
+        inputText.value = textoSelecionado;
+        inputUrl.value  = '';
+        popup.hidden = false;
+        setTimeout(() => inputUrl.focus(), 20);
+    }
+
+    function fecharPopup() {
+        popup.hidden = true;
+        savedRange = null;
+        inputUrl.value = '';
+        inputText.value = '';
+    }
+
+    function inserirLink() {
+        const url  = inputUrl.value.trim();
+        if (!url) { inputUrl.focus(); return; }
+        const text = inputText.value.trim() || url;
+
+        const editor = document.getElementById('inputCartaoDescricao');
+        editor.focus();
+
+        if (savedRange) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRange);
+        }
+
+        const safeUrl  = url.replace(/"/g, '%22');
+        const safeText = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        document.execCommand('insertHTML', false,
+            `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeText}</a>`);
+
+        fecharPopup();
+    }
+
+    /* mousedown evita que o editor perca o foco e a seleção */
+    btnLink.addEventListener('mousedown', e => {
+        e.preventDefault();
+        if (!popup.hidden) { fecharPopup(); return; }
+        abrirPopup();
+    });
+
+    btnOk.addEventListener('click', inserirLink);
+
+    btnCancel.addEventListener('click', fecharPopup);
+
+    inputUrl.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  { e.preventDefault(); inserirLink(); }
+        if (e.key === 'Escape') fecharPopup();
+    });
+    inputText.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  { e.preventDefault(); inserirLink(); }
+        if (e.key === 'Escape') fecharPopup();
+    });
+
+    /* Ctrl+K dentro do editor abre o popup */
+    document.getElementById('inputCartaoDescricao').addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            abrirPopup();
+        }
+    });
+
+    /* Fechar ao clicar fora do popup */
+    document.addEventListener('mousedown', e => {
+        if (!popup.hidden && !popup.contains(e.target) && e.target !== btnLink) {
+            fecharPopup();
+        }
+    });
+
+    /* Impede que cliques dentro do popup fechem ao cair no handler acima */
+    popup.addEventListener('mousedown', e => e.stopPropagation());
+}());
 
 document.getElementById('btnTbImagem').addEventListener('click', () => {
     document.getElementById('uploadImagemKanban').click();

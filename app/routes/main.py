@@ -13,9 +13,9 @@ from sqlalchemy import desc
 from werkzeug.utils import secure_filename
 
 from models import (
-    Caderno, CartaoKanban, CelulaJupyter, ColunaKanban,
-    Codigo, Diagrama, HistoricoEtapas, IconeCustomizado, Imagem, Nota, PDF,
-    Planilha, TarefaFacil, Topico, db,
+    Apresentacao, Caderno, CartaoKanban, CelulaJupyter, ColunaKanban,
+    Codigo, ComentarioSlide, Diagrama, HistoricoEtapas, IconeCustomizado,
+    Imagem, Nota, PDF, Planilha, TarefaFacil, Topico, db,
 )
 
 bp_main = Blueprint('main', __name__)
@@ -31,7 +31,8 @@ TIPOS_DOCUMENTO = {
     'imagem':   {'icone': '🖼',  'label': 'Imagem'},
     'python':   {'icone': 'PY',  'label': 'Python'},
     'sql':      {'icone': 'SQL', 'label': 'SQL'},
-    'biblioteca': {'icone': '📚', 'label': 'Biblioteca'},
+    'biblioteca':    {'icone': '📚', 'label': 'Biblioteca'},
+    'apresentacao':  {'icone': '📊', 'label': 'Apresentação'},
 }
 
 
@@ -242,6 +243,211 @@ def importar_pdf():
     return redirect(url_for('main.dashboard'))
 
 
+# ── Apresentações PPT/PPTX ────────────────────────────────────────────────────
+
+def _extrair_slides_pptx(conteudo_bytes):
+    """Extrai título, texto e imagens de cada slide via python-pptx."""
+    import base64
+    import json
+    from io import BytesIO
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    prs = Presentation(BytesIO(conteudo_bytes))
+    slides = []
+    for slide in prs.slides:
+        s = {'titulo': '', 'linhas': [], 'imagens': [], 'notas': ''}
+
+        if slide.has_notes_slide:
+            nf = slide.notes_slide.notes_text_frame
+            if nf:
+                s['notas'] = nf.text.strip()
+
+        for shape in slide.shapes:
+            ph_idx = None
+            if hasattr(shape, 'placeholder_format') and shape.placeholder_format is not None:
+                ph_idx = shape.placeholder_format.idx
+
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    t = para.text.strip()
+                    if not t:
+                        continue
+                    if ph_idx == 0:
+                        if not s['titulo']:
+                            s['titulo'] = t
+                    else:
+                        s['linhas'].append(t)
+
+            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                try:
+                    ext = shape.image.ext.lower()
+                    b64 = base64.b64encode(shape.image.blob).decode()
+                    s['imagens'].append(f'data:image/{ext};base64,{b64}')
+                except Exception:
+                    pass
+
+        slides.append(s)
+
+    return json.dumps({'total': len(slides), 'slides': slides}, ensure_ascii=False)
+
+
+@bp_main.route('/apresentacao/importar', methods=['POST'])
+@login_required
+def importar_apresentacao():
+    """Importa um PPT/PPTX como item da árvore lateral."""
+    arquivo = request.files.get('arquivo_pptx')
+    id_pai_raw = request.form.get('id_pai_pptx', '').strip()
+    id_pai = int(id_pai_raw) if id_pai_raw.isdigit() else None
+
+    if id_pai and not _eh_container(_topico_do_usuario(id_pai)):
+        flash('A pasta de destino não foi encontrada.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    if not arquivo or not arquivo.filename:
+        flash('Escolha um arquivo PPT ou PPTX.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    nome_seguro = secure_filename(arquivo.filename)
+    if not nome_seguro.lower().endswith(('.ppt', '.pptx')):
+        flash('Somente arquivos PPT e PPTX são suportados.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    conteudo_bytes = arquivo.read()
+    titulo = os.path.splitext(nome_seguro)[0] or 'Apresentação'
+
+    try:
+        slides_json = _extrair_slides_pptx(conteudo_bytes)
+    except Exception:
+        slides_json = '{"total":0,"slides":[]}'
+
+    topico = Topico(
+        id_usuario=current_user.id,
+        id_pai=id_pai,
+        nome=titulo,
+        tipo='apresentacao',
+        icone='📊',
+        ordem=_proxima_ordem(id_pai),
+    )
+    db.session.add(topico)
+    db.session.flush()
+    db.session.add(Apresentacao(
+        id_topico=topico.id,
+        titulo=titulo,
+        conteudo=conteudo_bytes,
+        slides_json=slides_json,
+    ))
+    db.session.commit()
+
+    flash('Apresentação importada com sucesso.', 'sucesso')
+    return redirect(url_for('main.dashboard'))
+
+
+@bp_main.route('/apresentacao/<int:id>/arquivo')
+@login_required
+def arquivo_apresentacao(id):
+    """Serve o arquivo PPTX para download."""
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'apresentacao' or not topico.apresentacoes:
+        return '', 404
+    apres = topico.apresentacoes
+    if not apres.conteudo:
+        return '', 404
+    from io import BytesIO
+    mimetype = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    return send_file(
+        BytesIO(apres.conteudo),
+        mimetype=mimetype,
+        as_attachment=True,
+        download_name=f'{topico.nome}.pptx',
+    )
+
+
+@bp_main.route('/apresentacao/<int:id>/salvar', methods=['POST'])
+@login_required
+def salvar_apresentacao(id):
+    """Salva o slide atual visitado pelo usuário."""
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'apresentacao' or not topico.apresentacoes:
+        return jsonify({'erro': 'não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    if 'slide_atual' in dados:
+        topico.apresentacoes.slide_atual = max(1, int(dados['slide_atual']))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@bp_main.route('/apresentacao/<int:id>/comentarios', methods=['GET'])
+@login_required
+def listar_comentarios_slide(id):
+    """Lista comentários de um slide (query param: slide=N)."""
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'apresentacao' or not topico.apresentacoes:
+        return jsonify([])
+    slide_num = request.args.get('slide', type=int)
+    q = ComentarioSlide.query.filter_by(id_apresentacao=topico.apresentacoes.id)
+    if slide_num is not None:
+        q = q.filter_by(slide_num=slide_num)
+    return jsonify([{
+        'id': c.id,
+        'slide_num': c.slide_num,
+        'texto': c.texto,
+        'pos_x': c.pos_x,
+        'pos_y': c.pos_y,
+        'cor': c.cor,
+        'criado_em': c.criado_em.strftime('%d/%m/%Y %H:%M'),
+    } for c in q.order_by(ComentarioSlide.criado_em).all()])
+
+
+@bp_main.route('/apresentacao/<int:id>/comentarios', methods=['POST'])
+@login_required
+def criar_comentario_slide(id):
+    """Cria um balão de comentário em um slide."""
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'apresentacao' or not topico.apresentacoes:
+        return jsonify({'erro': 'não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    texto = (dados.get('texto') or '').strip()
+    if not texto:
+        return jsonify({'erro': 'Texto obrigatório'}), 400
+    c = ComentarioSlide(
+        id_apresentacao=topico.apresentacoes.id,
+        slide_num=int(dados.get('slide_num', 1)),
+        texto=texto,
+        pos_x=float(dados.get('pos_x', 50.0)),
+        pos_y=float(dados.get('pos_y', 50.0)),
+        cor=dados.get('cor', '#fbbf24'),
+    )
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({
+        'id': c.id,
+        'slide_num': c.slide_num,
+        'texto': c.texto,
+        'pos_x': c.pos_x,
+        'pos_y': c.pos_y,
+        'cor': c.cor,
+        'criado_em': c.criado_em.strftime('%d/%m/%Y %H:%M'),
+    })
+
+
+@bp_main.route('/apresentacao/<int:id>/comentarios/<int:cid>', methods=['DELETE'])
+@login_required
+def excluir_comentario_slide(id, cid):
+    """Exclui um balão de comentário."""
+    topico = _topico_do_usuario(id)
+    if not topico or topico.tipo != 'apresentacao' or not topico.apresentacoes:
+        return jsonify({'erro': 'não encontrado'}), 404
+    c = ComentarioSlide.query.filter_by(
+        id=cid, id_apresentacao=topico.apresentacoes.id
+    ).first()
+    if not c:
+        return jsonify({'erro': 'não encontrado'}), 404
+    db.session.delete(c)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 # ── Visualização e edição de conteúdo ─────────────────────────────────────────
 
 _TMPL_CONTEUDO = {
@@ -255,7 +461,8 @@ _TMPL_CONTEUDO = {
     'diagrama': 'content/_diagrama.html',
     'python':     'content/_python.html',
     'sql':        'content/_sql.html',
-    'biblioteca': 'content/_biblioteca.html',
+    'biblioteca':   'content/_biblioteca.html',
+    'apresentacao': 'content/_apresentacao.html',
 }
 
 
@@ -293,6 +500,8 @@ def ver_topico(id):
             .order_by(Topico.ordem, Topico.nome)
             .all()
         )
+    elif topico.tipo == 'apresentacao':
+        conteudo = topico.apresentacoes
     else:
         conteudo = None
 
@@ -358,6 +567,55 @@ def mover_topico(id):
     return jsonify({'ok': True})
 
 
+@bp_main.route('/topicos/<int:id>/reordenar', methods=['POST'])
+@login_required
+def reordenar_topico(id):
+    """Reposiciona um item antes ou depois de um irmão na mesma pasta."""
+    topico = _topico_do_usuario(id)
+    if not topico:
+        return jsonify({'erro': 'Não encontrado'}), 404
+
+    dados    = request.get_json(silent=True) or {}
+    alvo_id  = dados.get('alvo_id')
+    posicao  = dados.get('posicao')  # 'antes' | 'depois'
+
+    if not alvo_id or posicao not in ('antes', 'depois'):
+        return jsonify({'erro': 'Parâmetros inválidos'}), 400
+
+    alvo = _topico_do_usuario(int(alvo_id))
+    if not alvo:
+        return jsonify({'erro': 'Item de referência não encontrado'}), 404
+
+    # Garante que o item vai para o mesmo pai do alvo
+    topico.id_pai = alvo.id_pai
+
+    # Busca todos os irmãos (exceto o próprio item) ordenados
+    irmaos = (
+        Topico.query
+        .filter_by(id_usuario=current_user.id, id_pai=alvo.id_pai)
+        .filter(Topico.id != topico.id)
+        .order_by(Topico.ordem, Topico.id)
+        .all()
+    )
+
+    # Insere o item na posição correta
+    idx_alvo = next((i for i, t in enumerate(irmaos) if t.id == alvo.id), None)
+    if idx_alvo is None:
+        return jsonify({'erro': 'Referência não encontrada nos irmãos'}), 400
+
+    if posicao == 'antes':
+        irmaos.insert(idx_alvo, topico)
+    else:
+        irmaos.insert(idx_alvo + 1, topico)
+
+    # Reatribui ordens consecutivas
+    for nova_ordem, t in enumerate(irmaos, start=1):
+        t.ordem = nova_ordem
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 def _eh_descendente(topico_id, candidato_pai_id):
     """Retorna True se candidato_pai_id está na subárvore de topico_id (detecta ciclo)."""
     current_id = candidato_pai_id
@@ -414,7 +672,7 @@ def salvar_topico(id):
 
 _TIPOS_ICONE_VALIDOS = frozenset((
     'nota', 'caderno', 'planilha', 'diagrama', 'jupyter',
-    'tarefa', 'imagem', 'python', 'sql', 'biblioteca', 'pdf', 'pasta',
+    'tarefa', 'imagem', 'python', 'sql', 'biblioteca', 'pdf', 'pasta', 'apresentacao',
 ))
 
 

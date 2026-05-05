@@ -40,15 +40,13 @@
                 <div class="topic-row"
                      tabindex="0"
                      draggable="true"
-                      data-id="{{ topico.id }}"
-                      data-nome="{{ topico.nome }}"
-                      data-tipo="{{ topico.tipo }}"
-                      ondragstart="sbDragStart(event)"
+                     data-id="{{ topico.id }}"
+                     data-nome="{{ topico.nome }}"
+                     data-tipo="{{ topico.tipo }}"
+                     ondragstart="sbDragStart(event)"
                      ondragend="sbDragEnd(event)"
-                      {% if topico.tipo in ('pasta', 'biblioteca') %}
                      ondragover="sbDragOver(event)"
-                     ondrop="sbDrop(event)"
-                     {% endif %}>
+                     ondrop="sbDrop(event)">
                     {{ icone_topico(topico) }}
                     <span class="topic-name">{{ topico.nome }}</span>
                     {% if topico.subtopicos %}
@@ -69,7 +67,8 @@
     <!-- ── Sidebar ─────────────────────────────── -->
     <aside class="workspace-sidebar" id="sidebar"
            data-create-url="{{ url_for('main.criar_topico') }}"
-           data-pdf-url="{{ url_for('main.importar_pdf') }}">
+           data-pdf-url="{{ url_for('main.importar_pdf') }}"
+           data-pptx-url="{{ url_for('main.importar_apresentacao') }}">
 
         <div class="sidebar-cab">
             <span class="sidebar-cab-label">Biblioteca</span>
@@ -199,6 +198,9 @@
     <div class="ctx-separator"></div>
     <button class="ctx-item" data-tipo="_pdf">
         <span class="ctx-icon-file" style="--tc:#ef4444"></span>Importar PDF…
+    </button>
+    <button class="ctx-item" data-tipo="_pptx">
+        <span class="ctx-icon-file" style="--tc:#f97316"></span>Importar PPT/PPTX…
     </button>
     <div class="ctx-separator" id="ctxDeleteSep" hidden></div>
     <button class="ctx-item" id="ctxBtnRenomear" hidden>
@@ -459,6 +461,9 @@
     outline: 2px solid #2563eb;
     outline-offset: -2px;
 }
+
+.topic-row.drag-antes { box-shadow: 0 -2px 0 0 #2563eb; }
+.topic-row.drag-depois { box-shadow: 0 2px 0 0 #2563eb; }
 
 /* ── Árvore ─────────────────────────────── */
 .tree-panel {
@@ -1186,7 +1191,8 @@ body.sb-resizing iframe { pointer-events: none; }
         imagem:   'Imagem',
         python:    'Python',
         sql:       'SQL',
-        biblioteca:'Biblioteca',
+        biblioteca:   'Biblioteca',
+        apresentacao: 'Apresentação',
     };
 
     const CODE_TYPES = {
@@ -1752,6 +1758,32 @@ body.sb-resizing iframe { pointer-events: none; }
         });
     }
 
+    /* ── Modal: importar PPT/PPTX ──────── */
+    const pptxUrl = document.getElementById('sidebar').dataset.pptxUrl;
+
+    function abrirPptxModal() {
+        const paiLabel = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
+        const modal = criarModal(`
+            <div class="modal-box">
+                <p class="modal-subtitle">${paiLabel}</p>
+                <h3 class="modal-title">Importar Apresentação</h3>
+                <form method="post" action="${pptxUrl}" enctype="multipart/form-data">
+                    <input type="hidden" name="id_pai_pptx" value="${ctxPaiId}">
+                    <div class="form-group">
+                        <label>Arquivo PPT ou PPTX</label>
+                        <input name="arquivo_pptx" type="file" accept=".ppt,.pptx" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Importar</button>
+                    </div>
+                </form>
+            </div>`);
+        modal.querySelector('form').addEventListener('submit', function () {
+            this.querySelector('[type="submit"]').disabled = true;
+        });
+    }
+
     /* ── Renomear item ──────────────────── */
     ctxBtnRen.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1833,6 +1865,8 @@ body.sb-resizing iframe { pointer-events: none; }
             const tipo = item.dataset.tipo;
             if (tipo === '_pdf') {
                 abrirPdfModal();
+            } else if (tipo === '_pptx') {
+                abrirPptxModal();
             } else {
                 abrirModal(tipo);
             }
@@ -1857,33 +1891,68 @@ body.sb-resizing iframe { pointer-events: none; }
         });
     };
 
+    /* Limpa todos os indicadores visuais de drop */
+    function sbLimparIndicadores() {
+        document.querySelectorAll('.topic-row.drag-alvo, .topic-row.drag-antes, .topic-row.drag-depois')
+            .forEach(r => r.classList.remove('drag-alvo', 'drag-antes', 'drag-depois'));
+    }
+
     window.sbDragEnd = function(e) {
         e.currentTarget.classList.remove('is-dragging');
         rootDropZone.classList.remove('drag-ativo', 'drag-sobre');
-        document.querySelectorAll('.topic-row.drag-alvo')
-            .forEach(r => r.classList.remove('drag-alvo'));
-        window._sbId = null;
+        sbLimparIndicadores();
+        window._sbId     = null;
+        window._sbAlvoId = null;
+        window._sbPos    = null;
     };
 
     window.sbDragOver = function(e) {
         const el = e.currentTarget;
         if (!window._sbId || el.dataset.id === window._sbId) return;
-        e.preventDefault();                        /* obrigatório para drop */
+        e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
-        /* Destaca só esta pasta */
-        document.querySelectorAll('.topic-row.drag-alvo')
-            .forEach(r => { if (r !== el) r.classList.remove('drag-alvo'); });
-        el.classList.add('drag-alvo');
+
+        const rect  = el.getBoundingClientRect();
+        const relY  = (e.clientY - rect.top) / rect.height;
+        const ePasta = el.dataset.tipo === 'pasta' || el.dataset.tipo === 'biblioteca';
+
+        /* Para pastas: zona central → mover para dentro; bordas → reordenar.
+           Para demais: metade superior/inferior → reordenar. */
+        let pos;
+        if (ePasta) {
+            if      (relY < 0.25) pos = 'antes';
+            else if (relY > 0.75) pos = 'depois';
+            else                  pos = 'dentro';
+        } else {
+            pos = relY < 0.5 ? 'antes' : 'depois';
+        }
+
+        window._sbAlvoId = el.dataset.id;
+        window._sbPos    = pos;
+
+        sbLimparIndicadores();
+        if      (pos === 'antes')  el.classList.add('drag-antes');
+        else if (pos === 'depois') el.classList.add('drag-depois');
+        else                       el.classList.add('drag-alvo');
     };
 
     window.sbDrop = function(e) {
         e.preventDefault();
         e.stopPropagation();
         const el = e.currentTarget;
-        el.classList.remove('drag-alvo');
+        sbLimparIndicadores();
         if (!window._sbId) return;
-        sbMover(window._sbId, parseInt(el.dataset.id));
+
+        const id    = window._sbId;
+        const alvo  = window._sbAlvoId || el.dataset.id;
+        const pos   = window._sbPos    || 'dentro';
+
+        if (pos === 'dentro') {
+            sbMover(id, parseInt(alvo));
+        } else {
+            sbReordenar(id, alvo, pos);
+        }
     };
 
     /* Zona de raiz */
@@ -1914,6 +1983,19 @@ body.sb-resizing iframe { pointer-events: none; }
         .then(res => {
             if (res.ok) window.location.reload();
             else alert(res.erro || 'Não foi possível mover o item.');
+        });
+    }
+
+    function sbReordenar(id, alvoId, posicao) {
+        fetch(`/topicos/${id}/reordenar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alvo_id: parseInt(alvoId), posicao }),
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.ok) window.location.reload();
+            else alert(res.erro || 'Não foi possível reordenar.');
         });
     }
 
