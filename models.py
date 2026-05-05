@@ -157,6 +157,7 @@ class CartaoKanban(db.Model):
 
     # Relacionamentos
     historico_etapas = db.relationship('HistoricoEtapas', backref='cartao', lazy=True, cascade='all, delete-orphan')
+    execucoes = db.relationship('ExecucaoCartao', backref='cartao', lazy=True, cascade='all, delete-orphan')
 
     __table_args__ = (
         db.Index('idx_cartoes_kanban_coluna_ordem', 'id_coluna', 'ordem'),
@@ -182,6 +183,24 @@ class HistoricoEtapas(db.Model):
 
     def __repr__(self):
         return f'<HistoricoEtapas cartao={self.id_cartao} coluna={self.id_coluna}>'
+
+
+class ExecucaoCartao(db.Model):
+    """Registro de execuções/observações vinculadas a um cartão kanban."""
+    __tablename__ = 'execucoes_cartao'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_cartao = db.Column(db.Integer, db.ForeignKey('cartoes_kanban.id', ondelete='CASCADE'), nullable=False)
+    texto = db.Column(db.Text, nullable=False)
+    concluida = db.Column(db.Boolean, default=False)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('idx_execucoes_cartao', 'id_cartao', 'criado_em'),
+    )
+
+    def __repr__(self):
+        return f'<ExecucaoCartao cartao={self.id_cartao}>'
 
 
 class Diagrama(db.Model):
