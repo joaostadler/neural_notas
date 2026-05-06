@@ -56,6 +56,10 @@
           <span id="apresSlideNum">1</span> / <span id="apresSlideTotal">1</span>
         </span>
         <button class="apres-nav-btn" id="apresNext">Próxima &#8594;</button>
+        <span class="apres-nav-sep"></span>
+        <button class="apres-nav-btn apres-zoom-btn" id="apresZoomOut" title="Diminuir zoom">−</button>
+        <span class="apres-nav-label" id="apresZoomLabel" style="min-width:48px">100%</span>
+        <button class="apres-nav-btn apres-zoom-btn" id="apresZoomIn" title="Aumentar zoom">+</button>
       </div>
 
       <!-- Notas do slide -->
@@ -96,9 +100,9 @@
 .apres-main{flex:1;min-width:0;display:flex;flex-direction:column;background:#64748b;overflow:hidden}
 
 /* ── Stage (contém canvas + overlay) ─────────────────────────────── */
-.apres-stage-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden}
+.apres-stage-wrap{flex:1;min-height:0;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto}
 .apres-stage{position:relative;display:inline-block;line-height:0}
-.apres-slide-canvas{background:#fff;box-shadow:0 8px 32px rgba(0,0,0,.35);border-radius:4px;overflow:hidden;aspect-ratio:16/9;width:min(100%,860px)}
+.apres-slide-canvas{background:#fff;box-shadow:0 8px 32px rgba(0,0,0,.35);border-radius:4px;overflow:hidden;aspect-ratio:16/9;width:min(100%,860px);transform-origin:top center;transition:transform .15s}
 .apres-slide-inner{width:100%;height:100%;padding:32px 40px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;overflow:hidden}
 
 /* ── Conteúdo do slide ───────────────────────────────────────────── */
@@ -138,11 +142,13 @@
 .ancp-btn-add:hover{background:#1d4ed8}
 
 /* ── Navegação ───────────────────────────────────────────────────── */
-.apres-nav{display:flex;align-items:center;justify-content:center;gap:20px;padding:10px 20px;background:#475569;flex-shrink:0}
+.apres-nav{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 20px;background:#475569;flex-shrink:0}
 .apres-nav-btn{font-size:13px;padding:6px 16px;border-radius:6px;border:1px solid #94a3b8;background:transparent;color:#e2e8f0;cursor:pointer;transition:background .15s,color .15s}
 .apres-nav-btn:hover:not(:disabled){background:#64748b;color:#fff}
 .apres-nav-btn:disabled{opacity:.35;cursor:default}
 .apres-nav-label{font-size:14px;color:#e2e8f0;font-weight:500;min-width:70px;text-align:center}
+.apres-nav-sep{width:1px;height:20px;background:#64748b;margin:0 4px}
+.apres-zoom-btn{padding:4px 12px;font-size:18px;font-weight:700;line-height:1}
 
 /* ── Botão comentar ─────────────────────────────────────────────── */
 .apres-btn-comentar{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;transition:all .15s}
@@ -172,6 +178,7 @@
     let pendingX = 0, pendingY = 0;
     let corSelecionada = '#fbbf24';
     let comentariosPorSlide = {};  /* cache: slide_num -> [comentário] */
+    let apresZoom = 1.0;
 
     /* ── Elementos ───────────────────────────────────────────────── */
     const elCanvas    = document.getElementById('apresCanvas');
@@ -184,11 +191,33 @@
     const elNext      = document.getElementById('apresNext');
     const elNotes     = document.getElementById('apresNotes');
     const elNotesText = document.getElementById('apresNotesText');
-    const elBtnComent = document.getElementById('btnModoComent');
-    const elPopup     = document.getElementById('apresNewCommentPopup');
-    const elAncpText  = document.getElementById('ancpText');
-    const elAncpAdd   = document.getElementById('ancpAdd');
-    const elAncpCancel= document.getElementById('ancpCancel');
+    const elBtnComent  = document.getElementById('btnModoComent');
+    const elPopup      = document.getElementById('apresNewCommentPopup');
+    const elAncpText   = document.getElementById('ancpText');
+    const elAncpAdd    = document.getElementById('ancpAdd');
+    const elAncpCancel = document.getElementById('ancpCancel');
+    const elZoomOut    = document.getElementById('apresZoomOut');
+    const elZoomIn     = document.getElementById('apresZoomIn');
+    const elZoomLabel  = document.getElementById('apresZoomLabel');
+
+    /* ── Zoom do slide ───────────────────────────────────────────── */
+    const ZOOM_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
+
+    function aplicarZoom() {
+        elCanvas.style.transform = apresZoom === 1.0 ? '' : `scale(${apresZoom})`;
+        elZoomLabel.textContent = Math.round(apresZoom * 100) + '%';
+        elZoomOut.disabled = apresZoom <= ZOOM_STEPS[0];
+        elZoomIn.disabled  = apresZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1];
+    }
+
+    function mudarZoomApres(delta) {
+        const idx = ZOOM_STEPS.findIndex(z => z >= apresZoom - 0.01);
+        apresZoom = ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, idx + delta))];
+        aplicarZoom();
+    }
+
+    elZoomOut.addEventListener('click', () => mudarZoomApres(-1));
+    elZoomIn.addEventListener('click',  () => mudarZoomApres(+1));
 
     /* ── Cores disponíveis para balões ───────────────────────────── */
     const CORES = ['#fbbf24','#ef4444','#3b82f6','#22c55e','#a855f7','#ec4899'];

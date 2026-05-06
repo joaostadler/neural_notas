@@ -25,6 +25,10 @@
         </span>
         <button type="button" class="pdf-btn" id="pdfNext">Proxima</button>
         <span class="pdf-progress" id="pdfProgress">{{ conteudo.percentual_lido }}%</span>
+        <span class="pdf-tb-sep"></span>
+        <button type="button" class="pdf-btn pdf-btn-zoom" id="pdfZoomOut" title="Diminuir zoom">−</button>
+        <span class="pdf-zoom-label" id="pdfZoomLabel">100%</span>
+        <button type="button" class="pdf-btn pdf-btn-zoom" id="pdfZoomIn" title="Aumentar zoom">+</button>
       </div>
       <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
         <canvas id="pdfCanvas"></canvas>
@@ -64,8 +68,11 @@
 .pdf-btn{height:28px;padding:0 12px;border:1px solid #dbe4ef;border-radius:6px;background:#fff;color:#334155;font-size:12px;cursor:pointer}
 .pdf-btn:hover:not(:disabled){background:#f1f5f9}
 .pdf-btn:disabled{color:#cbd5e1;cursor:default}
+.pdf-btn-zoom{padding:0 10px;font-size:16px;font-weight:700;line-height:1}
 .pdf-page-label{font-size:13px;color:#475569;min-width:70px;text-align:center}
 .pdf-progress{font-size:12px;font-weight:700;color:#7c3aed;min-width:42px;text-align:right}
+.pdf-tb-sep{width:1px;height:20px;background:#e2e8f0;margin:0 2px}
+.pdf-zoom-label{font-size:12px;color:#475569;min-width:42px;text-align:center;font-weight:500}
 .pdf-canvas-wrap{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:18px;position:relative}
 #pdfCanvas{background:#fff;box-shadow:0 4px 24px rgba(15,23,42,.16);max-width:100%;height:auto}
 #pdfFallbackFrame{width:100%;height:100%;border:none;background:#fff}
@@ -114,6 +121,41 @@
   let rendering = false;
   let pendingPage = null;
   let saveTimer = null;
+  let userZoom = 1.0;
+
+  const ZOOM_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
+  const zoomLabel  = document.getElementById('pdfZoomLabel');
+  const btnZoomOut = document.getElementById('pdfZoomOut');
+  const btnZoomIn  = document.getElementById('pdfZoomIn');
+
+  function atualizarZoomUI() {
+    zoomLabel.textContent = Math.round(userZoom * 100) + '%';
+    btnZoomOut.disabled = userZoom <= ZOOM_STEPS[0];
+    btnZoomIn.disabled  = userZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1];
+  }
+
+  function mudarZoom(delta) {
+    const idx = ZOOM_STEPS.findIndex(z => z >= userZoom - 0.01);
+    const novoIdx = Math.max(0, Math.min(ZOOM_STEPS.length - 1, idx + delta));
+    userZoom = ZOOM_STEPS[novoIdx];
+    atualizarZoomUI();
+    if (pdfDoc) renderPage(pageNum);
+  }
+
+  btnZoomOut.addEventListener('click', () => mudarZoom(-1));
+  btnZoomIn.addEventListener('click',  () => mudarZoom(+1));
+
+  /* scroll: Ctrl = zoom, normal = virar página */
+  canvasWrap.addEventListener('wheel', e => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      mudarZoom(e.deltaY < 0 ? 1 : -1);
+      return;
+    }
+    if (Math.abs(e.deltaY) < 20) return;
+    e.preventDefault();
+    goToPage(pageNum + (e.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
   const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
   const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -152,7 +194,8 @@
     pdfDoc.getPage(num).then(page => {
       const baseViewport = page.getViewport({ scale: 1 });
       const available = Math.max(320, canvasWrap.clientWidth - 44);
-      const scale = Math.min(2.2, Math.max(0.7, available / baseViewport.width));
+      const fitScale = available / baseViewport.width;
+      const scale = fitScale * userZoom;
       const viewport = page.getViewport({ scale });
       const ctx = canvas.getContext('2d');
 
@@ -188,11 +231,6 @@
 
   prevBtn.addEventListener('click', () => goToPage(pageNum - 1));
   nextBtn.addEventListener('click', () => goToPage(pageNum + 1));
-  canvasWrap.addEventListener('wheel', e => {
-    if (Math.abs(e.deltaY) < 20) return;
-    e.preventDefault();
-    goToPage(pageNum + (e.deltaY > 0 ? 1 : -1));
-  }, { passive: false });
   wrap.addEventListener('keydown', e => {
     if (e.key === 'ArrowLeft') goToPage(pageNum - 1);
     if (e.key === 'ArrowRight') goToPage(pageNum + 1);
@@ -220,6 +258,8 @@
     nextBtn.disabled = true;
     setBadge('Leitor nativo', '');
   }
+
+  atualizarZoomUI();
 
   carregarPdfJs().then(() => {
     pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
