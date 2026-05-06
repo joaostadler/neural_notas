@@ -1,4 +1,4 @@
-{% set dados = conteudo.dados_json | tojson if conteudo else '{"colunas":["A","B","C"],"linhas":[["","",""],["","",""],["","",""]]}' %}
+{% set dados_raw = conteudo.dados_json if conteudo else '{"abas":[{"nome":"Planilha1","colunas":["A","B","C"],"linhas":[["","",""],["","",""],["","",""]]}]}' %}
 
 <div class="plan-wrap">
 
@@ -20,6 +20,8 @@
       <tbody id="planBody"></tbody>
     </table>
   </div>
+
+  <div class="plan-tabs-bar" id="planTabsBar"></div>
 
 </div>
 
@@ -43,30 +45,55 @@
 .plan-table td div{padding:4px 10px;min-height:32px;font-size:13px;color:#1e293b;outline:none;white-space:pre-wrap}
 .plan-table td div:focus{background:#eff6ff;outline:2px solid #93c5fd;outline-offset:-2px}
 .plan-table tr:hover td{background:#fafbfc}
+/* Barra de abas */
+.plan-tabs-bar{display:flex;align-items:flex-end;gap:2px;padding:0 8px;background:#f1f5f9;border-top:1px solid #e2e8f0;flex-shrink:0;overflow-x:auto;min-height:34px}
+.plan-tab{padding:5px 14px;border:1px solid transparent;border-bottom:none;border-radius:5px 5px 0 0;background:#e2e8f0;color:#64748b;font-size:12px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;margin-top:4px}
+.plan-tab:hover{background:#cbd5e1;color:#334155}
+.plan-tab.ativo{background:#fff;border-color:#e2e8f0;color:#0f172a;font-weight:600;margin-top:3px}
 </style>
 
 <script>
 (function(){
-  const saveUrl   = '/topico/{{ topico.id }}/salvar';
-  const badge     = document.getElementById('saveBadge');
-  const planHead  = document.getElementById('planHead');
-  const planBody  = document.getElementById('planBody');
+  const saveUrl  = '/topico/{{ topico.id }}/salvar';
+  const badge    = document.getElementById('saveBadge');
+  const planHead = document.getElementById('planHead');
+  const planBody = document.getElementById('planBody');
+  const tabsBar  = document.getElementById('planTabsBar');
 
-  let dados;
-  try { dados = JSON.parse({{ dados | safe }}); }
-  catch { dados = {colunas:['A','B','C'], linhas:[['','',''],['','',''],['','','']]}; }
+  /* ── Carrega e normaliza dados ── */
+  let allData;
+  try {
+    const raw = JSON.parse({{ dados_raw | tojson }});
+    if (raw.abas && Array.isArray(raw.abas)) {
+      allData = raw.abas;
+    } else {
+      /* formato antigo {colunas, linhas} — envolve em array */
+      allData = [{ nome: 'Planilha1', colunas: raw.colunas || ['A','B','C'], linhas: raw.linhas || [] }];
+    }
+  } catch {
+    allData = [{ nome: 'Planilha1', colunas: ['A','B','C'], linhas: [['','',''],['','',''],['','','']] }];
+  }
 
-  /* ── Renderizar ── */
+  let abaAtual = 0;
+
+  function abaData() { return allData[abaAtual]; }
+
+  /* ── Renderizar tabela ── */
   function renderizar() {
+    const dados = abaData();
+
     /* Cabeçalho */
     planHead.innerHTML = '';
     const tr = document.createElement('tr');
     tr.innerHTML = '<th>#</th>';
-    dados.colunas.forEach(c => {
+    dados.colunas.forEach((c, ci) => {
       const th = document.createElement('th');
       th.contentEditable = 'true';
       th.textContent = c;
-      th.addEventListener('blur', () => { dados.colunas[Array.from(tr.children).indexOf(th) - 1] = th.textContent.trim() || '?'; salvar(); });
+      th.addEventListener('blur', () => {
+        dados.colunas[ci] = th.textContent.trim() || '?';
+        agendarSalvar();
+      });
       tr.appendChild(th);
     });
     planHead.appendChild(tr);
@@ -94,6 +121,23 @@
     });
   }
 
+  /* ── Renderizar abas ── */
+  function renderTabs() {
+    tabsBar.innerHTML = '';
+    allData.forEach((aba, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'plan-tab' + (i === abaAtual ? ' ativo' : '');
+      btn.textContent = aba.nome;
+      btn.title = aba.nome;
+      btn.addEventListener('click', () => {
+        abaAtual = i;
+        renderizar();
+        renderTabs();
+      });
+      tabsBar.appendChild(btn);
+    });
+  }
+
   /* ── Auto-save ── */
   let timer;
   function agendarSalvar() {
@@ -109,7 +153,7 @@
     fetch(saveUrl, {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({ dados_json: JSON.stringify(dados) })
+      body:    JSON.stringify({ dados_json: JSON.stringify({ abas: allData }) })
     })
     .then(r => r.json())
     .then(d => {
@@ -119,21 +163,25 @@
     .catch(() => { badge.textContent = 'Erro'; badge.className = 'save-badge error'; });
   }
 
-  /* ── Adicionar coluna / linha ── */
+  /* ── Adicionar coluna / linha (na aba ativa) ── */
   document.getElementById('addCol').addEventListener('click', () => {
-    const letra = String.fromCharCode(65 + dados.colunas.length);
-    dados.colunas.push(letra);
-    dados.linhas.forEach(l => l.push(''));
+    const d = abaData();
+    const letra = String.fromCharCode(65 + d.colunas.length % 26);
+    d.colunas.push(letra);
+    d.linhas.forEach(l => l.push(''));
     renderizar();
     salvar();
   });
 
   document.getElementById('addRow').addEventListener('click', () => {
-    dados.linhas.push(new Array(dados.colunas.length).fill(''));
+    const d = abaData();
+    d.linhas.push(new Array(d.colunas.length).fill(''));
     renderizar();
     salvar();
   });
 
+  /* ── Init ── */
+  renderTabs();
   renderizar();
 }());
 </script>

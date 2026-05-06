@@ -21,14 +21,14 @@ from models import (
 bp_main = Blueprint('main', __name__)
 
 
+_BRT = timezone(timedelta(hours=-3))
+
 @bp_main.route('/health')
 def health():
     """Keep-alive endpoint — sem autenticação."""
-    from datetime import timezone
-    brt = timezone(timedelta(hours=-3))
     return jsonify({
         'status': 'ok',
-        'ts': datetime.now(brt).strftime('%Y-%m-%d %H:%M:%S BRT'),
+        'ts': datetime.now(_BRT).strftime('%Y-%m-%d %H:%M:%S BRT'),
     })
 
 
@@ -503,12 +503,13 @@ def excluir_comentario_slide(id, cid):
 # ── Planilhas XLS/XLSX ────────────────────────────────────────────────────────
 
 def _extrair_planilha_excel(conteudo_bytes, ext):
-    """Lê XLS ou XLSX e retorna dados_json no formato {colunas, linhas}."""
+    """Lê XLS ou XLSX e retorna dados_json no formato {abas:[{nome,colunas,linhas}]}."""
     import json
     from io import BytesIO
 
     MAX_LINHAS  = 2000
     MAX_COLUNAS = 100
+    MAX_ABAS    = 20
 
     def _val(v):
         if v is None:
@@ -516,38 +517,6 @@ def _extrair_planilha_excel(conteudo_bytes, ext):
         if isinstance(v, float):
             return int(v) if v == int(v) else round(v, 10)
         return str(v)
-
-    if ext == '.xlsx':
-        import openpyxl
-        wb = openpyxl.load_workbook(BytesIO(conteudo_bytes), read_only=True, data_only=True)
-        ws = wb.active
-        rows = list(ws.iter_rows(max_row=MAX_LINHAS + 1, max_col=MAX_COLUNAS, values_only=True))
-        wb.close()
-    else:  # .xls
-        import xlrd
-        wb = xlrd.open_workbook(file_contents=conteudo_bytes)
-        ws = wb.sheet_by_index(0)
-        n_rows = min(ws.nrows, MAX_LINHAS + 1)
-        n_cols = min(ws.ncols, MAX_COLUNAS)
-        rows = [
-            [ws.cell_value(r, c) for c in range(n_cols)]
-            for r in range(n_rows)
-        ]
-
-    if not rows:
-        return json.dumps({'colunas': ['A', 'B', 'C'],
-                           'linhas':  [['', '', ''], ['', '', '']]})
-
-    # Descobre a largura real (última coluna com algum dado)
-    def _width(row):
-        for i in range(len(row) - 1, -1, -1):
-            if row[i] is not None and str(row[i]).strip():
-                return i + 1
-        return 0
-
-    max_col = max((_width(r) for r in rows), default=1)
-    max_col = max(1, min(max_col, MAX_COLUNAS))
-    rows = [list(row[:max_col]) for row in rows]
 
     def _col_letter(i):
         s = ''
@@ -558,19 +527,60 @@ def _extrair_planilha_excel(conteudo_bytes, ext):
                 break
         return s
 
-    primeira = [str(_val(c)) for c in rows[0]]
-    if any(c.strip() for c in primeira):
-        colunas = [c or _col_letter(i) for i, c in enumerate(primeira)]
-        dados   = rows[1:]
-    else:
-        colunas = [_col_letter(i) for i in range(len(rows[0]))]
-        dados   = rows
+    def _processar_rows(rows):
+        if not rows:
+            return ['A', 'B', 'C'], [['', '', ''], ['', '', '']]
+        # Descobre a largura real (última coluna com algum dado)
+        def _width(row):
+            for i in range(len(row) - 1, -1, -1):
+                if row[i] is not None and str(row[i]).strip():
+                    return i + 1
+            return 0
+        max_col = max((_width(r) for r in rows), default=1)
+        max_col = max(1, min(max_col, MAX_COLUNAS))
+        rows = [list(row[:max_col]) for row in rows]
+        primeira = [str(_val(c)) for c in rows[0]]
+        if any(c.strip() for c in primeira):
+            colunas = [c or _col_letter(i) for i, c in enumerate(primeira)]
+            dados   = rows[1:]
+        else:
+            colunas = [_col_letter(i) for i in range(len(rows[0]))]
+            dados   = rows
+        linhas = [[_val(c) for c in row] for row in dados[:MAX_LINHAS]]
+        n = len(colunas)
+        linhas = [(row + [''] * n)[:n] for row in linhas]
+        return colunas, linhas
 
-    linhas = [[_val(c) for c in row] for row in dados[:MAX_LINHAS]]
-    n = len(colunas)
-    linhas = [(row + [''] * n)[:n] for row in linhas]
+    abas = []
 
-    return json.dumps({'colunas': colunas, 'linhas': linhas}, ensure_ascii=False)
+    if ext == '.xlsx':
+        import openpyxl
+        wb = openpyxl.load_workbook(BytesIO(conteudo_bytes), read_only=True, data_only=True)
+        for nome in list(wb.sheetnames)[:MAX_ABAS]:
+            ws = wb[nome]
+            rows = list(ws.iter_rows(max_row=MAX_LINHAS + 1, max_col=MAX_COLUNAS, values_only=True))
+            colunas, linhas = _processar_rows(rows)
+            abas.append({'nome': nome, 'colunas': colunas, 'linhas': linhas})
+        wb.close()
+    else:  # .xls
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=conteudo_bytes)
+        for idx in range(min(wb.nsheets, MAX_ABAS)):
+            ws = wb.sheet_by_index(idx)
+            n_rows = min(ws.nrows, MAX_LINHAS + 1)
+            n_cols = min(ws.ncols, MAX_COLUNAS)
+            rows = [
+                [ws.cell_value(r, c) for c in range(n_cols)]
+                for r in range(n_rows)
+            ]
+            colunas, linhas = _processar_rows(rows)
+            abas.append({'nome': ws.name, 'colunas': colunas, 'linhas': linhas})
+
+    if not abas:
+        abas = [{'nome': 'Planilha1', 'colunas': ['A', 'B', 'C'],
+                 'linhas': [['', '', ''], ['', '', '']]}]
+
+    return json.dumps({'abas': abas}, ensure_ascii=False)
 
 
 @bp_main.route('/planilha/importar', methods=['POST'])
