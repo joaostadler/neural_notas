@@ -20,6 +20,19 @@ from models import (
 
 bp_main = Blueprint('main', __name__)
 
+
+@bp_main.route('/health')
+def health():
+    """Keep-alive endpoint — sem autenticação."""
+    from flask import jsonify
+    from datetime import datetime, timezone, timedelta
+    brt = timezone(timedelta(hours=-3))
+    return jsonify({
+        'status': 'ok',
+        'ts': datetime.now(brt).strftime('%Y-%m-%d %H:%M:%S BRT'),
+    })
+
+
 TIPOS_DOCUMENTO = {
     'pasta':    {'icone': '🗂',  'label': 'Pasta'},
     'nota':     {'icone': '📒', 'label': 'Nota'},
