@@ -151,11 +151,36 @@
     clearTimeout(saveTimer); saveTimer = setTimeout(salvar, 1500);
   });
 
+  /* ── Auto-link ao colar URL ── */
+  area.addEventListener('paste', e => {
+    const texto = (e.clipboardData || window.clipboardData)?.getData('text/plain')?.trim() || '';
+    if (!/^https?:\/\/\S{4,}$/i.test(texto)) return;
+    e.preventDefault();
+    const a = document.createElement('a');
+    a.href = texto;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.className = 'ext-link';
+    a.contentEditable = 'false';
+    a.textContent = texto;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const rng = sel.getRangeAt(0);
+      rng.deleteContents();
+      rng.insertNode(a);
+      const nr = document.createRange();
+      nr.setStartAfter(a); nr.collapse(true);
+      sel.removeAllRanges(); sel.addRange(nr);
+    }
+    clearTimeout(saveTimer); saveTimer = setTimeout(salvar, 1500);
+  });
+
   /* ── Click em link externo ── */
   area.addEventListener('click', e => {
-    const a = e.target.closest('a.ext-link');
+    const a = e.target.closest('a.ext-link, a[href^="http"]');
     if (!a) return;
     e.preventDefault();
+    e.stopPropagation();
     window.open(a.href, '_blank', 'noopener,noreferrer');
   });
 
