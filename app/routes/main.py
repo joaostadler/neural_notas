@@ -3,7 +3,7 @@ app/routes/main.py - Rotas principais da interface web.
 """
 
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -24,8 +24,7 @@ bp_main = Blueprint('main', __name__)
 @bp_main.route('/health')
 def health():
     """Keep-alive endpoint — sem autenticação."""
-    from flask import jsonify
-    from datetime import datetime, timezone, timedelta
+    from datetime import timezone
     brt = timezone(timedelta(hours=-3))
     return jsonify({
         'status': 'ok',
@@ -499,6 +498,128 @@ def excluir_comentario_slide(id, cid):
     db.session.delete(c)
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ── Planilhas XLS/XLSX ────────────────────────────────────────────────────────
+
+def _extrair_planilha_excel(conteudo_bytes, ext):
+    """Lê XLS ou XLSX e retorna dados_json no formato {colunas, linhas}."""
+    import json
+    from io import BytesIO
+
+    MAX_LINHAS  = 2000
+    MAX_COLUNAS = 100
+
+    def _val(v):
+        if v is None:
+            return ''
+        if isinstance(v, float):
+            return int(v) if v == int(v) else round(v, 10)
+        return str(v)
+
+    if ext == '.xlsx':
+        import openpyxl
+        wb = openpyxl.load_workbook(BytesIO(conteudo_bytes), read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(max_row=MAX_LINHAS + 1, max_col=MAX_COLUNAS, values_only=True))
+        wb.close()
+    else:  # .xls
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=conteudo_bytes)
+        ws = wb.sheet_by_index(0)
+        n_rows = min(ws.nrows, MAX_LINHAS + 1)
+        n_cols = min(ws.ncols, MAX_COLUNAS)
+        rows = [
+            [ws.cell_value(r, c) for c in range(n_cols)]
+            for r in range(n_rows)
+        ]
+
+    if not rows:
+        return json.dumps({'colunas': ['A', 'B', 'C'],
+                           'linhas':  [['', '', ''], ['', '', '']]})
+
+    # Descobre a largura real (última coluna com algum dado)
+    def _width(row):
+        for i in range(len(row) - 1, -1, -1):
+            if row[i] is not None and str(row[i]).strip():
+                return i + 1
+        return 0
+
+    max_col = max((_width(r) for r in rows), default=1)
+    max_col = max(1, min(max_col, MAX_COLUNAS))
+    rows = [list(row[:max_col]) for row in rows]
+
+    def _col_letter(i):
+        s = ''
+        while True:
+            s = chr(65 + i % 26) + s
+            i = i // 26 - 1
+            if i < 0:
+                break
+        return s
+
+    primeira = [str(_val(c)) for c in rows[0]]
+    if any(c.strip() for c in primeira):
+        colunas = [c or _col_letter(i) for i, c in enumerate(primeira)]
+        dados   = rows[1:]
+    else:
+        colunas = [_col_letter(i) for i in range(len(rows[0]))]
+        dados   = rows
+
+    linhas = [[_val(c) for c in row] for row in dados[:MAX_LINHAS]]
+    n = len(colunas)
+    linhas = [(row + [''] * n)[:n] for row in linhas]
+
+    return json.dumps({'colunas': colunas, 'linhas': linhas}, ensure_ascii=False)
+
+
+@bp_main.route('/planilha/importar', methods=['POST'])
+@login_required
+def importar_planilha():
+    """Importa XLS/XLSX como planilha na árvore lateral."""
+    arquivo    = request.files.get('arquivo_xlsx')
+    id_pai_raw = request.form.get('id_pai_xlsx', '').strip()
+    id_pai     = int(id_pai_raw) if id_pai_raw.isdigit() else None
+
+    if id_pai and not _eh_container(_topico_do_usuario(id_pai)):
+        flash('A pasta de destino não foi encontrada.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    if not arquivo or not arquivo.filename:
+        flash('Escolha um arquivo XLS ou XLSX.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    nome_seguro = secure_filename(arquivo.filename)
+    ext_lower   = os.path.splitext(nome_seguro)[1].lower()
+    if ext_lower not in ('.xls', '.xlsx'):
+        flash('Somente arquivos XLS e XLSX são suportados.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    conteudo_bytes = arquivo.read()
+    titulo = os.path.splitext(nome_seguro)[0] or 'Planilha'
+
+    try:
+        dados_json = _extrair_planilha_excel(conteudo_bytes, ext_lower)
+    except Exception as exc:
+        current_app.logger.warning('Falha ao extrair planilha "%s": %s', nome_seguro, exc)
+        flash(f'Não foi possível ler o arquivo ({exc}).', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    topico = Topico(
+        id_usuario=current_user.id,
+        id_pai=id_pai,
+        nome=titulo,
+        tipo='planilha',
+        icone='📊',
+        ordem=_proxima_ordem(id_pai),
+    )
+    db.session.add(topico)
+    db.session.flush()
+    db.session.add(Planilha(id_topico=topico.id, titulo=titulo, dados_json=dados_json))
+    db.session.commit()
+
+    flash('Planilha importada com sucesso.', 'sucesso')
+    return redirect(url_for('main.dashboard'))
 
 
 # ── Visualização e edição de conteúdo ─────────────────────────────────────────

@@ -68,7 +68,8 @@
     <aside class="workspace-sidebar" id="sidebar"
            data-create-url="{{ url_for('main.criar_topico') }}"
            data-pdf-url="{{ url_for('main.importar_pdf') }}"
-           data-pptx-url="{{ url_for('main.importar_apresentacao') }}">
+           data-pptx-url="{{ url_for('main.importar_apresentacao') }}"
+           data-xlsx-url="{{ url_for('main.importar_planilha') }}">
 
         <div class="sidebar-cab">
             <span class="sidebar-cab-label">Biblioteca</span>
@@ -201,6 +202,9 @@
     </button>
     <button class="ctx-item" data-tipo="_pptx">
         <span class="ctx-icon-file" style="--tc:#f97316"></span>Importar PPT/PPTX…
+    </button>
+    <button class="ctx-item" data-tipo="_xlsx">
+        <span class="ctx-icon-file" style="--tc:#16a34a"></span>Importar XLS/XLSX…
     </button>
     <div class="ctx-separator" id="ctxDeleteSep" hidden></div>
     <button class="ctx-item" id="ctxBtnRenomear" hidden>
@@ -1758,6 +1762,32 @@ body.sb-resizing iframe { pointer-events: none; }
         });
     }
 
+    /* ── Modal: importar XLS/XLSX ──────── */
+    const xlsxUrl = document.getElementById('sidebar').dataset.xlsxUrl;
+
+    function abrirXlsxModal() {
+        const paiLabel = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
+        const modal = criarModal(`
+            <div class="modal-box">
+                <p class="modal-subtitle">${paiLabel}</p>
+                <h3 class="modal-title">Importar Planilha</h3>
+                <form method="post" action="${xlsxUrl}" enctype="multipart/form-data">
+                    <input type="hidden" name="id_pai_xlsx" value="${ctxPaiId}">
+                    <div class="form-group">
+                        <label>Arquivo XLS ou XLSX</label>
+                        <input name="arquivo_xlsx" type="file" accept=".xls,.xlsx" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Importar</button>
+                    </div>
+                </form>
+            </div>`);
+        modal.querySelector('form').addEventListener('submit', function () {
+            this.querySelector('[type="submit"]').disabled = true;
+        });
+    }
+
     /* ── Modal: importar PPT/PPTX ──────── */
     const pptxUrl = document.getElementById('sidebar').dataset.pptxUrl;
 
@@ -1867,6 +1897,8 @@ body.sb-resizing iframe { pointer-events: none; }
                 abrirPdfModal();
             } else if (tipo === '_pptx') {
                 abrirPptxModal();
+            } else if (tipo === '_xlsx') {
+                abrirXlsxModal();
             } else {
                 abrirModal(tipo);
             }
