@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban de {{ dono }} — NeuralNotes</title>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <style>
+    .pub-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .75rem 1.5rem;
+        background: var(--bg-secondary, #1e293b);
+        border-bottom: 1px solid var(--border-color, #334155);
+    }
+    .pub-nav-brand {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text-primary, #e2e8f0);
+        text-decoration: none;
+    }
+    .pub-badge {
+        font-size: .75rem;
+        background: #16a34a22;
+        color: #4ade80;
+        border: 1px solid #16a34a55;
+        border-radius: 99px;
+        padding: .2rem .65rem;
+        font-weight: 600;
+    }
+    .pub-page {
+        padding: 1.5rem;
+    }
+    .pub-header {
+        margin-bottom: 1.25rem;
+    }
+    .pub-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--text-primary, #e2e8f0);
+        margin: 0 0 .25rem 0;
+    }
+    .pub-subtitle {
+        font-size: .85rem;
+        color: var(--text-secondary, #94a3b8);
+    }
+    .pub-board {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        align-items: flex-start;
+        padding-bottom: 1rem;
+    }
+    .pub-col {
+        flex: 0 0 280px;
+        background: var(--bg-secondary, #1e293b);
+        border: 1px solid var(--border-color, #334155);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .pub-col-header {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--border-color, #334155);
+    }
+    .pub-col-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .pub-col-name {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--text-primary, #e2e8f0);
+        flex: 1;
+    }
+    .pub-col-count {
+        font-size: .78rem;
+        color: var(--text-secondary, #94a3b8);
+        background: var(--bg-primary, #0f172a);
+        padding: .1rem .45rem;
+        border-radius: 99px;
+    }
+    .pub-col-cards {
+        padding: .75rem;
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        min-height: 60px;
+    }
+    .pub-card {
+        background: var(--bg-primary, #0f172a);
+        border: 1px solid var(--border-color, #334155);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .pub-card-prio-bar {
+        height: 3px;
+    }
+    .pub-card-prio-bar.prio-alta   { background: #ef4444; }
+    .pub-card-prio-bar.prio-media  { background: #f59e0b; }
+    .pub-card-prio-bar.prio-baixa  { background: #334155; }
+    .pub-card-body {
+        padding: .65rem .75rem;
+    }
+    .pub-card-title {
+        font-size: .875rem;
+        font-weight: 600;
+        color: var(--text-primary, #e2e8f0);
+        margin-bottom: .35rem;
+    }
+    .pub-card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem;
+        margin-bottom: .3rem;
+    }
+    .pub-card-tag {
+        font-size: .7rem;
+        background: var(--bg-secondary, #1e293b);
+        color: var(--text-secondary, #94a3b8);
+        border: 1px solid var(--border-color, #334155);
+        border-radius: 99px;
+        padding: .1rem .45rem;
+    }
+    .pub-empty {
+        font-size: .82rem;
+        color: var(--text-secondary, #94a3b8);
+        text-align: center;
+        padding: .75rem 0;
+    }
+    </style>
+</head>
+<body>
+    <nav class="pub-nav">
+        <span class="pub-nav-brand">🧠 NeuralNotes</span>
+        <span class="pub-badge">Visualização pública</span>
+    </nav>
+
+    <div class="pub-page">
+        <div class="pub-header">
+            <h1 class="pub-title">Kanban de {{ dono }}</h1>
+            <span class="pub-subtitle">{{ colunas|length }} colunas · somente leitura</span>
+        </div>
+
+        <div class="pub-board">
+            {% for col in colunas %}
+            <div class="pub-col">
+                <div class="pub-col-header">
+                    <span class="pub-col-dot" style="background:{{ col.cor }}"></span>
+                    <span class="pub-col-name">{{ col.nome }}</span>
+                    <span class="pub-col-count">{{ col.cartoes_ordenados|length }}</span>
+                </div>
+                <div class="pub-col-cards">
+                    {% if col.cartoes_ordenados %}
+                        {% for cartao in col.cartoes_ordenados %}
+                        <div class="pub-card">
+                            <div class="pub-card-prio-bar prio-{{ cartao.prioridade }}"></div>
+                            <div class="pub-card-body">
+                                <div class="pub-card-title">{{ cartao.titulo }}</div>
+                                {% if cartao.etiquetas %}
+                                <div class="pub-card-tags">
+                                    {% for tag in cartao.etiquetas.split(',') %}
+                                        {% if tag.strip() %}
+                                        <span class="pub-card-tag">{{ tag.strip() }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="pub-empty">Nenhum cartão</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not colunas %}
+            <div style="color:var(--text-secondary,#94a3b8);font-size:.9rem;padding:1rem">Nenhuma coluna disponível.</div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

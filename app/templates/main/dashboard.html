@@ -69,7 +69,8 @@
            data-create-url="{{ url_for('main.criar_topico') }}"
            data-pdf-url="{{ url_for('main.importar_pdf') }}"
            data-pptx-url="{{ url_for('main.importar_apresentacao') }}"
-           data-xlsx-url="{{ url_for('main.importar_planilha') }}">
+           data-xlsx-url="{{ url_for('main.importar_planilha') }}"
+           data-imagem-url="{{ url_for('main.importar_imagem') }}">
 
         <div class="sidebar-cab">
             <span class="sidebar-cab-label">Biblioteca</span>
@@ -184,8 +185,8 @@
     <button class="ctx-item" data-tipo="tarefa">
         <span class="ctx-icon-file" style="--tc:#16a34a"></span>Tarefa
     </button>
-    <button class="ctx-item" data-tipo="imagem">
-        <span class="ctx-icon-file" style="--tc:#7c3aed"></span>Imagem
+    <button class="ctx-item" data-tipo="_imagem">
+        <span class="ctx-icon-file" style="--tc:#7c3aed"></span>Importar Imagem…
     </button>
     <button class="ctx-item" data-tipo="biblioteca">
         <span class="ctx-icon-file" style="--tc:#7c3aed"></span>Biblioteca
@@ -1788,6 +1789,30 @@ body.sb-resizing iframe { pointer-events: none; }
         });
     }
 
+    /* ── Modal: importar Imagem ─────────── */
+    const imagemUrl = document.getElementById('sidebar').dataset.imagemUrl;
+
+    function abrirImagemModal() {
+        const paiLabel = ctxPaiId ? `Dentro de "${ctxPaiNome}"` : 'Na raiz';
+        const modal = criarModal(`
+            <div class="modal-box">
+                <p class="modal-subtitle">${paiLabel}</p>
+                <h3 class="modal-title">Importar Imagem</h3>
+                <form method="post" action="${imagemUrl}" enctype="multipart/form-data">
+                    <input type="hidden" name="id_pai_imagem" value="${ctxPaiId}">
+                    <div class="form-group">
+                        <label>Arquivo de imagem (PNG, JPG, JPEG, GIF, WEBP)</label>
+                        <input name="arquivo_imagem" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,image/png,image/jpeg,image/gif,image/webp,image/bmp" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-close>Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Importar</button>
+                    </div>
+                </form>
+            </div>`);
+        modal.querySelector('[data-close]').addEventListener('click', () => modal.remove());
+    }
+
     /* ── Modal: importar PPT/PPTX ──────── */
     const pptxUrl = document.getElementById('sidebar').dataset.pptxUrl;
 
@@ -1899,6 +1924,8 @@ body.sb-resizing iframe { pointer-events: none; }
                 abrirPptxModal();
             } else if (tipo === '_xlsx') {
                 abrirXlsxModal();
+            } else if (tipo === '_imagem') {
+                abrirImagemModal();
             } else {
                 abrirModal(tipo);
             }

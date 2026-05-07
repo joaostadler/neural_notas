@@ -255,6 +255,67 @@ def importar_pdf():
     return redirect(url_for('main.dashboard'))
 
 
+@bp_main.route('/imagem/importar', methods=['POST'])
+@login_required
+def importar_imagem():
+    """Importa uma imagem (PNG/JPG/JPEG/GIF/WEBP) como item da arvore lateral."""
+    from PIL import Image
+    from io import BytesIO
+
+    arquivo = request.files.get('arquivo_imagem')
+    id_pai_raw = request.form.get('id_pai_imagem', '').strip()
+    id_pai = int(id_pai_raw) if id_pai_raw.isdigit() else None
+
+    if id_pai and not _eh_container(_topico_do_usuario(id_pai)):
+        flash('A pasta de destino não foi encontrada.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    if not arquivo or not arquivo.filename:
+        flash('Escolha uma imagem para importar.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    nome_seguro = secure_filename(arquivo.filename)
+    ext = os.path.splitext(nome_seguro)[1].lower().lstrip('.')
+    if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'img'):
+        flash('Formato inválido. Use PNG, JPG, JPEG, GIF, WEBP ou BMP.', 'erro')
+        return redirect(url_for('main.dashboard'))
+
+    titulo = os.path.splitext(nome_seguro)[0] or 'Imagem importada'
+
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'imgs', str(current_user.id))
+    os.makedirs(pasta, exist_ok=True)
+
+    fmt_salvar = 'PNG' if ext == 'png' else 'JPEG'
+    ext_salvar = 'png' if ext == 'png' else 'jpg'
+    nome_arquivo = f'{os.urandom(12).hex()}.{ext_salvar}'
+    caminho_abs = os.path.join(pasta, nome_arquivo)
+
+    img = Image.open(BytesIO(arquivo.read()))
+    if img.mode not in ('RGB', 'RGBA'):
+        img = img.convert('RGBA' if fmt_salvar == 'PNG' else 'RGB')
+    if fmt_salvar == 'JPEG' and img.mode == 'RGBA':
+        img = img.convert('RGB')
+    img.save(caminho_abs, fmt_salvar, quality=90)
+
+    caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
+
+    topico = Topico(
+        id_usuario=current_user.id,
+        id_pai=id_pai,
+        nome=titulo,
+        tipo='imagem',
+        icone=TIPOS_DOCUMENTO['imagem']['icone'],
+        ordem=_proxima_ordem(id_pai),
+    )
+    db.session.add(topico)
+    db.session.flush()
+    db.session.add(Imagem(id_topico=topico.id, titulo=titulo, caminho=caminho_rel))
+    db.session.commit()
+
+    flash('Imagem importada com sucesso.', 'sucesso')
+    return redirect(url_for('main.dashboard'))
+
+
 # ── Apresentações PPT/PPTX ────────────────────────────────────────────────────
 
 def _extrair_slides_pptx(conteudo_bytes):
@@ -1080,8 +1141,22 @@ def resumo():
         {**c, 'pct': round(c['total'] / max_cartoes * 100), 'is_last': i == n - 1}
         for i, c in enumerate(kanban_cols_raw)
     ]
-    total_cartoes      = sum(c['total'] for c in kanban_cols)
-    cartoes_concluidos = kanban_cols[-1]['total'] if kanban_cols else 0
+    total_cartoes = sum(c['total'] for c in kanban_cols)
+
+    # Concluídos = cartões que entraram na última coluna dentro do período selecionado
+    if colunas:
+        ultima_coluna_id = colunas[-1].id
+        cartoes_concluidos = (
+            db.session.query(db.func.count(db.distinct(HistoricoEtapas.id_cartao)))
+            .filter(
+                HistoricoEtapas.id_coluna == ultima_coluna_id,
+                HistoricoEtapas.data_entrada >= de_dt,
+                HistoricoEtapas.data_entrada <= ate_dt,
+            )
+            .scalar() or 0
+        )
+    else:
+        cartoes_concluidos = 0
 
     def _conta_prio(p):
         return (

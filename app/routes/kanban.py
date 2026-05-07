@@ -7,7 +7,7 @@ from uuid import uuid4
 from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from models import CartaoKanban, ColunaKanban, ExecucaoCartao, HistoricoEtapas, db
+from models import AcessoKanban, CartaoKanban, ColunaKanban, CompartilhamentoKanban, ExecucaoCartao, HistoricoEtapas, Usuario, db
 
 bp_kanban = Blueprint('kanban', __name__, url_prefix='/kanban')
 
@@ -47,13 +47,35 @@ def _proxima_ordem_cartao(coluna_id):
 @bp_kanban.route('')
 @login_required
 def kanban():
+    # Verifica se está visualizando kanban de outro usuário
+    dono_id = request.args.get('dono', type=int)
+    readonly = False
+    eh_admin = False
+    dono_nome = None
+
+    if dono_id and dono_id != current_user.id:
+        acesso = AcessoKanban.query.filter_by(
+            id_dono=dono_id, id_convidado=current_user.id
+        ).first()
+        if not acesso:
+            dono_id = None  # Sem acesso: mostra próprio kanban
+        else:
+            readonly = True
+            eh_admin = (acesso.papel == 'admin')
+            dono_nome = Usuario.query.get(dono_id).nome
+    else:
+        dono_id = None
+
+    uid_efetivo = dono_id or current_user.id
+
     colunas = (
-        ColunaKanban.query.filter_by(id_usuario=current_user.id)
+        ColunaKanban.query.filter_by(id_usuario=uid_efetivo)
         .order_by(ColunaKanban.ordem)
         .all()
     )
 
-    if not colunas:
+    # Cria colunas padrão apenas para o próprio kanban
+    if not colunas and not readonly:
         for i, col in enumerate(COLUNAS_PADRAO):
             db.session.add(ColunaKanban(
                 id_usuario=current_user.id,
@@ -68,10 +90,16 @@ def kanban():
             .all()
         )
 
+    # Usuário (não admin) só vê colunas configuradas
+    if readonly and not eh_admin:
+        comp = CompartilhamentoKanban.query.filter_by(id_usuario=uid_efetivo).first()
+        if comp and comp.colunas_visiveis:
+            ids_visiveis = {int(x) for x in comp.colunas_visiveis.split(',') if x.strip().isdigit()}
+            colunas = [c for c in colunas if c.id in ids_visiveis]
+
     ultima_coluna = colunas[-1] if colunas else None
     ultima_coluna_id = ultima_coluna.id if ultima_coluna else None
 
-    # Data de conclusão: entrada mais recente de cada cartão na última coluna
     conclusoes = {}
     if ultima_coluna:
         for h in HistoricoEtapas.query.filter_by(id_coluna=ultima_coluna.id).all():
@@ -81,11 +109,23 @@ def kanban():
     for col in colunas:
         col.cartoes_ordenados = sorted(col.cartoes, key=lambda c: c.ordem)
 
+    # Kanbans compartilhados com o usuário atual (para o dropdown)
+    acessos_recebidos = AcessoKanban.query.filter_by(id_convidado=current_user.id).all()
+    kanbans_compartilhados = [
+        {'id': a.id_dono, 'nome': Usuario.query.get(a.id_dono).nome, 'papel': a.papel}
+        for a in acessos_recebidos
+    ]
+
     return render_template(
         'kanban/kanban.html',
         colunas=colunas,
         ultima_coluna_id=ultima_coluna_id,
         conclusoes=conclusoes,
+        readonly=readonly,
+        eh_admin=eh_admin,
+        dono_nome=dono_nome,
+        dono_id=dono_id,
+        kanbans_compartilhados=kanbans_compartilhados,
     )
 
 
@@ -371,6 +411,30 @@ def toggle_execucao(id):
     execucao.concluida = not execucao.concluida
     db.session.commit()
     return jsonify({'ok': True, 'concluida': execucao.concluida})
+
+
+@bp_kanban.route('/publico/<token>')
+def kanban_publico(token):
+    comp = CompartilhamentoKanban.query.filter_by(token=token, ativo=True).first()
+    if not comp:
+        return render_template('kanban/publico_inativo.html'), 404
+
+    ids_visiveis = None
+    if comp.colunas_visiveis:
+        ids_visiveis = {int(x) for x in comp.colunas_visiveis.split(',') if x.strip().isdigit()}
+
+    colunas = (
+        ColunaKanban.query.filter_by(id_usuario=comp.id_usuario)
+        .order_by(ColunaKanban.ordem)
+        .all()
+    )
+    if ids_visiveis is not None:
+        colunas = [c for c in colunas if c.id in ids_visiveis]
+
+    for col in colunas:
+        col.cartoes_ordenados = sorted(col.cartoes, key=lambda c: c.ordem)
+
+    return render_template('kanban/publico.html', colunas=colunas, dono=comp.usuario.nome)
 
 
 @bp_kanban.route('/reordenar', methods=['POST'])

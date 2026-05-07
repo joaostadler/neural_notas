@@ -5,6 +5,7 @@ Todas as tabelas e colunas em português-BR para facilitar
 o entendimento do código.
 """
 
+import secrets
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
@@ -28,6 +29,7 @@ class Usuario(UserMixin, db.Model):
     colunas_kanban = db.relationship('ColunaKanban', backref='usuario', lazy=True, cascade='all, delete-orphan')
     tarefas_faceis = db.relationship('TarefaFacil', backref='usuario', lazy=True, cascade='all, delete-orphan')
     icones_customizados = db.relationship('IconeCustomizado', backref='usuario', lazy=True, cascade='all, delete-orphan')
+    compartilhamento_kanban = db.relationship('CompartilhamentoKanban', backref='usuario', uselist=False, cascade='all, delete-orphan')
 
     def definir_senha(self, senha: str) -> None:
         """Define e faz hash da senha."""
@@ -372,3 +374,36 @@ class TarefaFacil(db.Model):
 
     def __repr__(self):
         return f'<TarefaFacil {self.descricao[:50]}>'
+
+
+class CompartilhamentoKanban(db.Model):
+    """Configuração de link público para visualização do kanban."""
+    __tablename__ = 'compartilhamentos_kanban'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False, unique=True)
+    token = db.Column(db.String(64), nullable=False, unique=True, default=lambda: secrets.token_urlsafe(32))
+    ativo = db.Column(db.Boolean, default=False)
+    colunas_visiveis = db.Column(db.Text, default='')  # CSV de IDs de colunas; vazio = todas
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<CompartilhamentoKanban usuario={self.id_usuario} ativo={self.ativo}>'
+
+
+class AcessoKanban(db.Model):
+    """Acesso de um usuário ao kanban de outro usuário do sistema."""
+    __tablename__ = 'acessos_kanban'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_dono = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    id_convidado = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    papel = db.Column(db.String(20), default='usuario')  # 'admin' | 'usuario'
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('id_dono', 'id_convidado', name='uq_acesso_kanban'),
+    )
+
+    def __repr__(self):
+        return f'<AcessoKanban dono={self.id_dono} convidado={self.id_convidado} papel={self.papel}>'

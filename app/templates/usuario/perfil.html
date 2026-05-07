@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% block title %}Minha Conta — NeuralNotes{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ── */
+.pf-page { max-width: 820px; margin: 0 auto; padding: 28px 20px; }
+.pf-title { font-size: 1.45rem; font-weight: 700; color: var(--texto); margin: 0 0 24px; }
+
+/* ── Seções ── */
+.pf-section {
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+}
+.pf-section-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--borda);
+}
+.pf-section-title {
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--texto);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.pf-badge {
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .2rem .55rem;
+    border-radius: 99px;
+    letter-spacing: .3px;
+}
+.pf-badge-green { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.pf-badge-gray  { background: var(--cartao); color: var(--apagado); border: 1px solid var(--borda); }
+
+/* ── Info ── */
+.pf-info-row { display: flex; gap: 8px; align-items: baseline; font-size: .875rem; margin-bottom: 6px; }
+.pf-info-row strong { color: var(--apagado); min-width: 110px; font-weight: 500; }
+.pf-info-row span { color: var(--texto); }
+
+/* ── Formulário ── */
+.pf-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pf-form-group { display: flex; flex-direction: column; gap: 5px; }
+.pf-form-group.full { grid-column: span 2; }
+.pf-form-group label { font-size: .8rem; font-weight: 600; color: var(--apagado); }
+.pf-form-group input {
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+    padding: .45rem .7rem;
+    font-size: .875rem;
+    color: var(--texto);
+    background: var(--bg);
+    transition: border-color .15s;
+}
+.pf-form-group input:focus { outline: none; border-color: var(--destaque); }
+.pf-divider { border: none; border-top: 1px solid var(--borda); margin: 16px 0; }
+.pf-subsection-title { font-size: .83rem; font-weight: 700; color: var(--apagado); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 12px; }
+
+/* ── Toggle ── */
+.pf-toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.pf-toggle-label { font-size: .9rem; color: var(--texto); font-weight: 500; }
+.pf-toggle-sub { font-size: .78rem; color: var(--apagado); margin-top: 2px; }
+.pf-switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.pf-switch input { display: none; }
+.pf-switch-slider {
+    position: absolute; inset: 0;
+    background: var(--borda); border-radius: 24px; cursor: pointer; transition: background .2s;
+}
+.pf-switch-slider::before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; left: 4px; top: 4px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.pf-switch input:checked + .pf-switch-slider { background: var(--verde); }
+.pf-switch input:checked + .pf-switch-slider::before { transform: translateX(18px); }
+
+/* ── Link de compartilhamento ── */
+.pf-link-row { display: flex; gap: 6px; margin-bottom: 14px; }
+.pf-link-input {
+    flex: 1; background: var(--cartao); border: 1px solid var(--borda); border-radius: 6px;
+    padding: .4rem .7rem; font-size: .78rem; font-family: monospace; color: var(--texto);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pf-link-input:disabled { opacity: .5; }
+
+/* ── Colunas visíveis ── */
+.pf-cols-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin-bottom: 12px; }
+.pf-col-check {
+    display: flex; align-items: center; gap: 7px;
+    padding: .4rem .65rem; border: 1px solid var(--borda); border-radius: 6px;
+    cursor: pointer; font-size: .85rem; color: var(--texto); background: var(--bg);
+    user-select: none; transition: border-color .15s;
+}
+.pf-col-check:hover { border-color: var(--destaque); }
+.pf-col-check input[type=checkbox] { accent-color: var(--destaque); }
+.pf-col-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.pf-hint { font-size: .78rem; color: var(--apagado); margin-bottom: 10px; }
+.pf-save-ok { font-size: .78rem; color: var(--verde); margin-left: 8px; display: none; }
+
+/* ── Usuários com acesso ── */
+.pf-user-search-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.pf-user-search { flex: 1; border: 1px solid var(--borda); border-radius: 6px; padding: .4rem .7rem; font-size: .875rem; background: var(--bg); color: var(--texto); }
+.pf-user-search:focus { outline: none; border-color: var(--destaque); }
+.pf-user-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.pf-user-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border: 1px solid var(--borda); border-radius: 8px; background: var(--bg);
+    transition: border-color .15s;
+}
+.pf-user-item:hover { border-color: #cbd5e1; }
+.pf-user-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--destaque); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; font-weight: 700; flex-shrink: 0; text-transform: uppercase;
+}
+.pf-user-info { flex: 1; min-width: 0; }
+.pf-user-nome { font-size: .875rem; font-weight: 600; color: var(--texto); }
+.pf-user-login { font-size: .75rem; color: var(--apagado); }
+.pf-user-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pf-role-select {
+    border: 1px solid var(--borda); border-radius: 5px; padding: .3rem .55rem;
+    font-size: .78rem; color: var(--texto); background: var(--painel); cursor: pointer;
+}
+.pf-role-select:focus { outline: none; border-color: var(--destaque); }
+.pf-user-toggle { /* usa .pf-switch */ }
+.pf-empty-users { color: var(--apagado); font-size: .875rem; text-align: center; padding: 20px 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pf-page">
+    <h1 class="pf-title">Minha Conta</h1>
+
+    <!-- ── Perfil ── -->
+    <div class="pf-section">
+        <div class="pf-section-hdr">
+            <h2 class="pf-section-title">👤 Perfil</h2>
+        </div>
+
+        <div style="margin-bottom:14px">
+            <div class="pf-info-row"><strong>Usuário</strong><span>{{ current_user.usuario }}</span></div>
+            <div class="pf-info-row"><strong>Membro desde</strong><span>{{ current_user.criado_em.strftime('%d/%m/%Y') }}</span></div>
+        </div>
+
+        <form method="POST" action="{{ url_for('usuario.perfil') }}">
+            <div class="pf-form-grid">
+                <div class="pf-form-group full">
+                    <label>Nome de exibição</label>
+                    <input type="text" name="nome" value="{{ current_user.nome }}" placeholder="Seu nome">
+                </div>
+            </div>
+
+            <hr class="pf-divider">
+            <div class="pf-subsection-title">Alterar senha</div>
+
+            <div class="pf-form-grid">
+                <div class="pf-form-group full">
+                    <label>Senha atual</label>
+                    <input type="password" name="senha_atual" placeholder="Digite a senha atual">
+                </div>
+                <div class="pf-form-group">
+                    <label>Nova senha</label>
+                    <input type="password" name="nova_senha" placeholder="Nova senha (mín. 4 char)">
+                </div>
+                <div class="pf-form-group">
+                    <label>Confirmar nova senha</label>
+                    <input type="password" name="confirmar_senha" placeholder="Repita a nova senha">
+                </div>
+            </div>
+
+            <div style="margin-top:14px">
+                <button type="submit" class="btn btn-primary btn-sm">Salvar alterações</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ── Link público ── -->
+    <div class="pf-section">
+        <div class="pf-section-hdr">
+            <h2 class="pf-section-title">🔗 Link público do Kanban</h2>
+            <span class="pf-badge {% if comp.ativo %}pf-badge-green{% else %}pf-badge-gray{% endif %}" id="pfShareBadge">
+                {% if comp.ativo %}Ativo{% else %}Inativo{% endif %}
+            </span>
+        </div>
+
+        <div class="pf-toggle-row">
+            <div>
+                <div class="pf-toggle-label">Permitir visualização pública</div>
+                <div class="pf-toggle-sub">Qualquer pessoa com o link pode ver o quadro (somente leitura, sem login)</div>
+            </div>
+            <label class="pf-switch">
+                <input type="checkbox" id="pfToggleShare" {% if comp.ativo %}checked{% endif %}>
+                <span class="pf-switch-slider"></span>
+            </label>
+        </div>
+
+        <div class="pf-link-row">
+            <input type="text" class="pf-link-input" id="pfLinkInput" readonly
+                   value="{% if comp.ativo %}{{ link_publico }}{% else %}Ative para gerar o link{% endif %}"
+                   {% if not comp.ativo %}disabled{% endif %}>
+            <button class="btn btn-primary btn-sm" id="pfBtnCopy" {% if not comp.ativo %}disabled{% endif %}>Copiar</button>
+            <button class="btn btn-secondary btn-sm" id="pfBtnRegen" {% if not comp.ativo %}disabled{% endif %}
+                    title="Novo link (o anterior para de funcionar)">↺ Novo link</button>
+        </div>
+
+        <hr class="pf-divider">
+        <div class="pf-subsection-title">Colunas visíveis no link público</div>
+        <div class="pf-hint">Colunas marcadas aparecerão no link público E para usuários com acesso <em>Visualizador</em>. Deixe todas marcadas para mostrar tudo.</div>
+
+        <div class="pf-cols-grid" id="pfColsGrid">
+            {% for col in colunas %}
+            <label class="pf-col-check">
+                <input type="checkbox" class="pf-col-chk" value="{{ col.id }}"
+                       {% if not colunas_visiveis_ids or col.id in colunas_visiveis_ids %}checked{% endif %}>
+                <span class="pf-col-dot" style="background:{{ col.cor }}"></span>
+                {{ col.nome }}
+            </label>
+            {% endfor %}
+        </div>
+        <button class="btn btn-primary btn-sm" id="pfBtnSalvarCols">Salvar colunas</button>
+        <span class="pf-save-ok" id="pfColsOk">✓ Salvo</span>
+    </div>
+
+    <!-- ── Usuários do sistema ── -->
+    <div class="pf-section">
+        <div class="pf-section-hdr">
+            <h2 class="pf-section-title">👥 Compartilhar com usuários do sistema</h2>
+        </div>
+
+        <div class="pf-hint" style="margin-bottom:12px">
+            <strong>Admin</strong> — vê todas as colunas e pode acompanhar tudo.
+            &nbsp;|&nbsp;
+            <strong>Visualizador</strong> — vê apenas as colunas marcadas acima.
+        </div>
+
+        <div class="pf-user-search-row">
+            <input type="text" class="pf-user-search" id="pfUserSearch" placeholder="Buscar usuário…">
+        </div>
+
+        <div class="pf-user-list" id="pfUserList">
+            <div class="pf-empty-users" id="pfUserLoading">Carregando…</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    /* ── Link público ── */
+    const toggleEl  = document.getElementById('pfToggleShare');
+    const linkInput = document.getElementById('pfLinkInput');
+    const btnCopy   = document.getElementById('pfBtnCopy');
+    const btnRegen  = document.getElementById('pfBtnRegen');
+    const badge     = document.getElementById('pfShareBadge');
+
+    function setAtivo(ativo, link) {
+        badge.textContent = ativo ? 'Ativo' : 'Inativo';
+        badge.className = 'pf-badge ' + (ativo ? 'pf-badge-green' : 'pf-badge-gray');
+        linkInput.value = ativo && link ? link : 'Ative para gerar o link';
+        linkInput.disabled = !ativo;
+        btnCopy.disabled = !ativo;
+        btnRegen.disabled = !ativo;
+    }
+
+    toggleEl.addEventListener('change', async () => {
+        const r = await fetch('/usuario/kanban-share/toggle', { method: 'POST' });
+        const d = await r.json();
+        setAtivo(d.ativo, d.link);
+    });
+
+    btnCopy.addEventListener('click', () => {
+        if (!linkInput.value || linkInput.disabled) return;
+        navigator.clipboard.writeText(linkInput.value).then(() => {
+            const t = btnCopy.textContent;
+            btnCopy.textContent = '✓ Copiado';
+            setTimeout(() => { btnCopy.textContent = t; }, 1800);
+        });
+    });
+
+    btnRegen.addEventListener('click', async () => {
+        if (!confirm('Gerar novo link? O anterior deixará de funcionar.')) return;
+        const r = await fetch('/usuario/kanban-share/regenerar', { method: 'POST' });
+        const d = await r.json();
+        if (d.link) linkInput.value = d.link;
+    });
+
+    document.getElementById('pfBtnSalvarCols').addEventListener('click', async () => {
+        const ids = Array.from(document.querySelectorAll('.pf-col-chk:checked')).map(c => parseInt(c.value));
+        await fetch('/usuario/kanban-share/colunas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+        });
+        const ok = document.getElementById('pfColsOk');
+        ok.style.display = 'inline';
+        setTimeout(() => { ok.style.display = 'none'; }, 2000);
+    });
+
+    /* ── Usuários do sistema ── */
+    let todosUsuarios = [];
+
+    async function carregarUsuarios() {
+        const r = await fetch('/usuario/kanban-usuarios');
+        todosUsuarios = await r.json();
+        renderUsuarios(todosUsuarios);
+    }
+
+    function renderUsuarios(lista) {
+        const container = document.getElementById('pfUserList');
+        if (!lista.length) {
+            container.innerHTML = '<div class="pf-empty-users">Nenhum outro usuário cadastrado.</div>';
+            return;
+        }
+        container.innerHTML = lista.map(u => `
+            <div class="pf-user-item" data-id="${u.id}">
+                <div class="pf-user-avatar">${u.nome.charAt(0)}</div>
+                <div class="pf-user-info">
+                    <div class="pf-user-nome">${escHtml(u.nome)}</div>
+                    <div class="pf-user-login">@${escHtml(u.usuario)}</div>
+                </div>
+                <div class="pf-user-controls">
+                    <select class="pf-role-select" ${u.tem_acesso ? '' : 'disabled'}
+                            data-id="${u.id}" onchange="alterarPapel(${u.id}, this.value)">
+                        <option value="usuario" ${u.papel === 'usuario' ? 'selected' : ''}>Visualizador</option>
+                        <option value="admin"   ${u.papel === 'admin'   ? 'selected' : ''}>Admin</option>
+                    </select>
+                    <label class="pf-switch" title="${u.tem_acesso ? 'Remover acesso' : 'Conceder acesso'}">
+                        <input type="checkbox" ${u.tem_acesso ? 'checked' : ''}
+                               onchange="toggleAcesso(${u.id}, this)">
+                        <span class="pf-switch-slider"></span>
+                    </label>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    window.toggleAcesso = async function(id, chk) {
+        const item = chk.closest('.pf-user-item');
+        const select = item.querySelector('.pf-role-select');
+        if (chk.checked) {
+            const papel = select.value || 'usuario';
+            await fetch('/usuario/kanban-acesso', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_convidado: id, papel }),
+            });
+            select.disabled = false;
+        } else {
+            await fetch(`/usuario/kanban-acesso/${id}`, { method: 'DELETE' });
+            select.disabled = true;
+        }
+    };
+
+    window.alterarPapel = async function(id, papel) {
+        await fetch('/usuario/kanban-acesso', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_convidado: id, papel }),
+        });
+    };
+
+    document.getElementById('pfUserSearch').addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        renderUsuarios(q ? todosUsuarios.filter(u =>
+            u.nome.toLowerCase().includes(q) || u.usuario.toLowerCase().includes(q)
+        ) : todosUsuarios);
+    });
+
+    carregarUsuarios();
+}());
+</script>
+{% endblock %}

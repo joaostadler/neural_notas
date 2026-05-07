@@ -10,13 +10,51 @@
 
 <div class="kb-page">
 
+    {% if readonly %}
+    <!-- Banner de modo leitura -->
+    <div class="kb-readonly-banner">
+        <span>
+            👁 Visualizando kanban de <strong>{{ dono_nome }}</strong>
+            — <em>somente leitura</em>
+            {% if eh_admin %}<span class="kb-readonly-role">Admin</span>{% else %}<span class="kb-readonly-role">Visualizador</span>{% endif %}
+        </span>
+        <a href="{{ url_for('kanban.kanban') }}" class="kb-readonly-back">← Meu Kanban</a>
+    </div>
+    {% endif %}
+
     <!-- Header -->
     <div class="kb-header">
         <div>
-            <h1 class="kb-title">Kanban</h1>
+            <h1 class="kb-title">
+                {% if readonly %}Kanban de {{ dono_nome }}{% else %}Kanban{% endif %}
+            </h1>
             <span class="kb-subtitle" id="kbSubtitle">{{ colunas|length }} colunas · {{ ns.total }} cartões</span>
         </div>
-        <button class="btn btn-primary btn-sm" id="btnNovaColuna">+ Nova coluna</button>
+        <div style="display:flex;align-items:center;gap:8px">
+            {% if kanbans_compartilhados %}
+            <div class="kb-switch-wrap" id="kbSwitchWrap">
+                <button class="btn btn-secondary btn-sm" id="kbSwitchBtn" title="Kanbans compartilhados comigo">
+                    🔀 Kanbans <span class="kb-switch-count">{{ kanbans_compartilhados|length }}</span>
+                </button>
+                <div class="kb-switch-menu" id="kbSwitchMenu" hidden>
+                    <div class="kb-switch-item {% if not readonly %}kb-switch-active{% endif %}">
+                        <a href="{{ url_for('kanban.kanban') }}">Meu Kanban</a>
+                    </div>
+                    {% for k in kanbans_compartilhados %}
+                    <div class="kb-switch-item {% if readonly and dono_id == k.id %}kb-switch-active{% endif %}">
+                        <a href="{{ url_for('kanban.kanban', dono=k.id) }}">
+                            {{ k.nome }}
+                            <span class="kb-switch-role">{{ 'Admin' if k.papel == 'admin' else 'Visualizador' }}</span>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if not readonly %}
+            <button class="btn btn-primary btn-sm" id="btnNovaColuna">+ Nova coluna</button>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Barra de filtro -->
@@ -51,12 +89,14 @@
                 <div class="kb-col-dot" style="background:{{ col.cor }}"></div>
                 <span class="kb-col-name">{{ col.nome }}</span>
                 <span class="kb-col-count">{{ col.cartoes_ordenados|length }}</span>
+                {% if not readonly %}
                 <div class="kb-col-menu">
                     <button class="kb-icon-btn" title="Editar coluna"
                             onclick="abrirEditarColuna({{ col.id }}, '{{ col.nome|e }}', '{{ col.cor }}')">✎</button>
                     <button class="kb-icon-btn kb-icon-btn--danger" title="Excluir coluna"
                             onclick="confirmarExcluirColuna({{ col.id }}, '{{ col.nome|e }}')">✕</button>
                 </div>
+                {% endif %}
             </div>
 
             <!-- Lista de cartões (zona de drop) -->
@@ -64,7 +104,8 @@
                  ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragleave="onDragLeave(event)">
 
                 {% for cartao in col.cartoes_ordenados %}
-                <div class="kb-card" draggable="true"
+                <div class="kb-card {% if readonly %}kb-card-readonly{% endif %}"
+                     {% if not readonly %}draggable="true"{% endif %}
                      data-id="{{ cartao.id }}"
                      data-col="{{ col.id }}"
                      data-titulo="{{ cartao.titulo|e }}"
@@ -73,12 +114,11 @@
                      data-prioridade="{{ cartao.prioridade }}"
                      data-criado="{{ cartao.criado_em.strftime('%Y-%m-%d') }}"
                      data-obs-conclusao="{{ (cartao.observacoes_conclusao or '')|e }}"
-                     ondragstart="onDragStart(event)"
-                     ondragend="onDragEnd(event)">
+                     {% if not readonly %}ondragstart="onDragStart(event)" ondragend="onDragEnd(event)"{% endif %}>
 
                     <div class="kb-card-prio-bar prio-{{ cartao.prioridade }}"></div>
 
-                    <div class="kb-card-body" onclick="abrirEditarCartao(this.closest('.kb-card'))">
+                    <div class="kb-card-body" {% if not readonly %}onclick="abrirEditarCartao(this.closest('.kb-card'))"{% endif %}>
                         <div class="kb-card-title">{{ cartao.titulo }}</div>
 
                         <div class="kb-card-footer">
@@ -106,6 +146,7 @@
                         {% endif %}
                     </div>
 
+                    {% if not readonly %}
                     <div class="kb-card-actions">
                         <button class="kb-icon-btn" title="Execuções"
                                 onclick="abrirExecucoes({{ cartao.id }}, '{{ cartao.titulo|e }}')">📋</button>
@@ -114,15 +155,18 @@
                         <button class="kb-icon-btn kb-icon-btn--danger" title="Excluir"
                                 onclick="confirmarExcluirCartao({{ cartao.id }}, '{{ cartao.titulo|e }}')">✕</button>
                     </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
 
             </div><!-- /kb-col-cards -->
 
             <!-- Botão adicionar cartão -->
+            {% if not readonly %}
             <button class="kb-add-card" onclick="abrirNovoCartao({{ col.id }})">
                 + Adicionar cartão
             </button>
+            {% endif %}
 
         </div><!-- /kb-col -->
         {% endfor %}
@@ -262,6 +306,52 @@
     overflow: hidden;
     background: #f0f4f9;
 }
+
+/* ── Banner readonly ─────────────────────────────────────────────── */
+.kb-readonly-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 24px; background: #eff6ff; border-bottom: 1px solid #bfdbfe;
+    font-size: .85rem; color: #1e40af; flex-shrink: 0; gap: 12px;
+}
+.kb-readonly-role {
+    display: inline-block; font-size: .72rem; font-weight: 700;
+    background: #dbeafe; color: #1d4ed8; border-radius: 99px; padding: .1rem .55rem;
+    margin-left: 6px; vertical-align: middle;
+}
+.kb-readonly-back {
+    color: #2563eb; font-weight: 600; text-decoration: none; font-size: .82rem; white-space: nowrap;
+}
+.kb-readonly-back:hover { text-decoration: underline; }
+
+/* ── Switch de kanbans compartilhados ────────────────────────────── */
+.kb-switch-wrap { position: relative; }
+.kb-switch-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 17px; height: 17px; font-size: .7rem; font-weight: 700;
+    background: #2563eb; color: #fff; border-radius: 50%; margin-left: 4px; vertical-align: middle;
+}
+.kb-switch-menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 200;
+    background: #fff; border: 1px solid #dbe4ef; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.12); min-width: 200px; overflow: hidden;
+}
+.kb-switch-item { border-bottom: 1px solid #f1f5f9; }
+.kb-switch-item:last-child { border-bottom: none; }
+.kb-switch-item a {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 14px; font-size: .875rem; color: #1e293b; text-decoration: none;
+    transition: background .1s;
+}
+.kb-switch-item a:hover { background: #f8fafc; }
+.kb-switch-active a { background: #eff6ff; color: #2563eb; font-weight: 600; }
+.kb-switch-role {
+    font-size: .7rem; font-weight: 600; color: #64748b;
+    background: #f1f5f9; border-radius: 99px; padding: .1rem .45rem;
+}
+
+/* ── Card readonly (sem cursor de grab) ──────────────────────────── */
+.kb-card-readonly { cursor: default !important; }
+.kb-card-readonly .kb-card-body { cursor: default !important; }
 
 /* ── Header ────────────────────────────────────────────────────────── */
 .kb-header {
@@ -1220,7 +1310,19 @@ COR_PRESETS.forEach(cor => {
     corPresetsEl.appendChild(btn);
 });
 
-document.getElementById('btnNovaColuna').addEventListener('click', () => {
+/* ── Dropdown de kanbans compartilhados ─────────────────────────── */
+(function() {
+    const btn  = document.getElementById('kbSwitchBtn');
+    const menu = document.getElementById('kbSwitchMenu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.hidden = !menu.hidden;
+    });
+    document.addEventListener('click', () => { menu.hidden = true; });
+})();
+
+document.getElementById('btnNovaColuna') && document.getElementById('btnNovaColuna').addEventListener('click', () => {
     editandoColunaId = null;
     document.getElementById('modalColunaEyebrow').textContent = 'Nova coluna';
     document.getElementById('modalColunaTitulo').textContent  = 'Criar coluna';

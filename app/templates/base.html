@@ -17,7 +17,7 @@
             <a href="{{ url_for('main.dashboard') }}" class="navbar-item navbar-link">Biblioteca</a>
             <a href="{{ url_for('kanban.kanban') }}" class="navbar-item navbar-link">Kanban</a>
             <a href="{{ url_for('tarefas.tarefas') }}" class="navbar-item navbar-link">Tarefas</a>
-            <span class="navbar-item">Bem-vindo, <strong>{{ current_user.nome }}</strong></span>
+            <a href="{{ url_for('usuario.perfil') }}" class="navbar-item navbar-link" title="Minha Conta">{{ current_user.nome }}</a>
             <a href="{{ url_for('auth.logout') }}" class="navbar-item btn-logout">Sair</a>
         </div>
     </nav>
