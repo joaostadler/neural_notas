@@ -353,6 +353,36 @@
 .rm-switch-divider { height: 1px; background: var(--borda); margin: 4px 0; }
 .rm-switch-new { color: var(--destaque); }
 
+/* ── Linha de roadmap no switcher ─── */
+.rm-switch-row {
+    display: flex;
+    align-items: center;
+    transition: background 0.1s;
+}
+.rm-switch-row:hover { background: var(--cartao); }
+.rm-switch-row.ativo .rm-switch-link { font-weight: 700; color: var(--destaque); }
+.rm-switch-link {
+    flex: 1;
+    display: block;
+    padding: 9px 4px 9px 14px;
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--texto);
+}
+.rm-star-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0 12px 0 4px;
+    font-size: 16px;
+    line-height: 1;
+    color: #334155;
+    transition: color 0.12s, transform 0.1s;
+    flex-shrink: 0;
+}
+.rm-star-btn:hover { color: #f59e0b; transform: scale(1.15); }
+.rm-star-btn.rm-star-on { color: #f59e0b; }
+
 /* ── Grade 3 colunas (subgrupos) ─────────────────────── */
 .rm-grid-3col { grid-template-columns: 170px 130px 1fr; }
 
@@ -431,10 +461,18 @@
                 <button class="rm-switch-btn" id="rmSwitchBtn">⊞ Roadmaps ▾</button>
                 <div class="rm-switch-menu" id="rmSwitchMenu" hidden>
                     {% for r in todos_roadmaps %}
-                    <a href="{{ url_for('roadmap.ver', roadmap_id=r.id) }}"
-                       class="rm-switch-item {% if r.id == roadmap.id %}ativo{% endif %}">
-                        {{ r.nome }}
-                    </a>
+                    <div class="rm-switch-row {% if r.id == roadmap.id %}ativo{% endif %}">
+                        <a href="{{ url_for('roadmap.ver', roadmap_id=r.id) }}" class="rm-switch-link">
+                            {{ r.nome }}
+                        </a>
+                        <button class="rm-star-btn {% if r.padrao %}rm-star-on{% endif %}"
+                                data-id="{{ r.id }}"
+                                data-padrao="{{ 'true' if r.padrao else 'false' }}"
+                                title="{{ 'Remover padrão' if r.padrao else 'Definir como padrão' }}"
+                                onclick="event.stopPropagation();togglePadrao({{ r.id }}, this)">
+                            {% if r.padrao %}★{% else %}☆{% endif %}
+                        </button>
+                    </div>
                     {% endfor %}
                     <div class="rm-switch-divider"></div>
                     <button class="rm-switch-item rm-switch-new" id="btnNovoRoadmapSwitch">+ Novo roadmap</button>
@@ -955,6 +993,25 @@ document.addEventListener('click', e => {
         switchMenu.hidden = true;
     }
 });
+
+async function togglePadrao(id, btn) {
+    const jaEhPadrao = btn.classList.contains('rm-star-on');
+    const { ok } = await api(`/roadmap/${id}/padrao`, 'PUT', { ativo: !jaEhPadrao });
+    if (!ok) return;
+    // Atualiza todas as estrelas no menu
+    document.querySelectorAll('.rm-star-btn').forEach(b => {
+        b.classList.remove('rm-star-on');
+        b.textContent = '☆';
+        b.title = 'Definir como padrão';
+        b.dataset.padrao = 'false';
+    });
+    if (!jaEhPadrao) {
+        btn.classList.add('rm-star-on');
+        btn.textContent = '★';
+        btn.title = 'Remover padrão';
+        btn.dataset.padrao = 'true';
+    }
+}
 
 document.getElementById('btnNovoRoadmapSwitch').addEventListener('click', () => {
     switchMenu.hidden = true;

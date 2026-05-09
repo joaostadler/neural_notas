@@ -417,6 +417,7 @@ class Roadmap(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
     nome = db.Column(db.String(255), nullable=False)
+    padrao = db.Column(db.Boolean, default=False, nullable=False)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

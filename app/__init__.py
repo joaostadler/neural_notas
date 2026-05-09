@@ -54,6 +54,7 @@ def criar_app(config=None):
             "ALTER TABLE acessos_kanban ADD COLUMN papel VARCHAR(20) DEFAULT 'usuario'",
             'ALTER TABLE projetos_roadmap ADD COLUMN id_subgrupo INTEGER REFERENCES subgrupos_roadmap(id)',
             'ALTER TABLE cartoes_kanban ADD COLUMN data_conclusao DATE',
+            'ALTER TABLE roadmaps ADD COLUMN padrao BOOLEAN DEFAULT 0',
         ]:
             try:
                 db.session.execute(db.text(stmt))

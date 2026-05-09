@@ -104,7 +104,9 @@ def lista():
                 .order_by(Roadmap.criado_em.desc())
                 .all())
     if roadmaps:
-        return redirect(url_for('roadmap.ver', roadmap_id=roadmaps[0].id))
+        padrao = next((r for r in roadmaps if r.padrao), None)
+        destino = padrao or roadmaps[0]
+        return redirect(url_for('roadmap.ver', roadmap_id=destino.id))
     return render_template('roadmap/lista.html', roadmaps=roadmaps)
 
 
@@ -152,6 +154,21 @@ def ver(roadmap_id):
                            tem_subgrupos=tem_subgrupos,
                            subgrupos_map=subgrupos_map,
                            total_rows=total_rows)
+
+
+@bp_roadmap.route('/<int:roadmap_id>/padrao', methods=['PUT'])
+@login_required
+def definir_padrao(roadmap_id):
+    r = _roadmap_do_usuario(roadmap_id)
+    if not r:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    ativar = dados.get('ativo', True)
+    Roadmap.query.filter_by(id_usuario=current_user.id).update({'padrao': False})
+    if ativar:
+        r.padrao = True
+    db.session.commit()
+    return jsonify({'ok': True, 'padrao': r.padrao})
 
 
 @bp_roadmap.route('/<int:roadmap_id>', methods=['PUT'])
