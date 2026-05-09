@@ -480,6 +480,14 @@ class ColunaRoadmap(db.Model):
         return f'<ColunaRoadmap {self.nome}>'
 
 
+projetos_roadmap_cartoes = db.Table(
+    'projetos_roadmap_cartoes',
+    db.Column('projeto_id', db.Integer, db.ForeignKey('projetos_roadmap.id', ondelete='CASCADE'), nullable=False),
+    db.Column('cartao_id',  db.Integer, db.ForeignKey('cartoes_kanban.id',  ondelete='CASCADE'), nullable=False),
+    db.PrimaryKeyConstraint('projeto_id', 'cartao_id'),
+)
+
+
 class ProjetoRoadmap(db.Model):
     """Projeto/iniciativa posicionado no roadmap."""
     __tablename__ = 'projetos_roadmap'
@@ -489,11 +497,15 @@ class ProjetoRoadmap(db.Model):
     id_linha = db.Column(db.Integer, db.ForeignKey('linhas_roadmap.id', ondelete='CASCADE'), nullable=False)
     id_subgrupo = db.Column(db.Integer, db.ForeignKey('subgrupos_roadmap.id', ondelete='SET NULL'), nullable=True)
     nome = db.Column(db.String(255), nullable=False)
+    descricao = db.Column(db.Text, default='')
+    ordem = db.Column(db.Integer, default=0)
     data_inicio = db.Column(db.Date, nullable=False)
     data_fim = db.Column(db.Date, nullable=False)
     cor = db.Column(db.String(7), default='#16a34a')
     status = db.Column(db.String(50), default='ativo')  # ativo, concluido, pausado
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    cartoes = db.relationship('CartaoKanban', secondary=projetos_roadmap_cartoes, lazy=True)
 
     def __repr__(self):
         return f'<ProjetoRoadmap {self.nome}>'

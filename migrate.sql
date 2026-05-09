@@ -285,5 +285,19 @@ ALTER TABLE acessos_kanban
 ALTER TABLE projetos_roadmap
     ADD COLUMN IF NOT EXISTS id_subgrupo INTEGER REFERENCES subgrupos_roadmap(id) ON DELETE SET NULL;
 
+ALTER TABLE projetos_roadmap
+    ADD COLUMN IF NOT EXISTS descricao TEXT DEFAULT '';
+
+ALTER TABLE projetos_roadmap
+    ADD COLUMN IF NOT EXISTS ordem INTEGER DEFAULT 0;
+
 ALTER TABLE roadmaps
     ADD COLUMN IF NOT EXISTS padrao BOOLEAN DEFAULT FALSE NOT NULL;
+
+-- Tabela de vínculo projeto ↔ cartão kanban (criada automaticamente pelo ORM,
+-- mas inclusa aqui para bancos que precisem de migração manual)
+CREATE TABLE IF NOT EXISTS projetos_roadmap_cartoes (
+    projeto_id INTEGER NOT NULL REFERENCES projetos_roadmap(id) ON DELETE CASCADE,
+    cartao_id  INTEGER NOT NULL REFERENCES cartoes_kanban(id)  ON DELETE CASCADE,
+    PRIMARY KEY (projeto_id, cartao_id)
+);

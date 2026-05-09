@@ -72,8 +72,14 @@ def criar_app(config=None):
                     ADD COLUMN IF NOT EXISTS id_subgrupo INTEGER
                         REFERENCES subgrupos_roadmap(id) ON DELETE SET NULL;
 
+                ALTER TABLE projetos_roadmap
+                    ADD COLUMN IF NOT EXISTS descricao TEXT DEFAULT '';
+
                 ALTER TABLE roadmaps
                     ADD COLUMN IF NOT EXISTS padrao BOOLEAN DEFAULT FALSE NOT NULL;
+
+                ALTER TABLE projetos_roadmap
+                    ADD COLUMN IF NOT EXISTS ordem INTEGER DEFAULT 0;
             """
             for stmt in pg_stmts.strip().split(';'):
                 stmt = stmt.strip()
@@ -99,6 +105,8 @@ def criar_app(config=None):
                 'ALTER TABLE projetos_roadmap ADD COLUMN id_subgrupo INTEGER REFERENCES subgrupos_roadmap(id)',
                 'ALTER TABLE cartoes_kanban ADD COLUMN data_conclusao DATE',
                 'ALTER TABLE roadmaps ADD COLUMN padrao BOOLEAN DEFAULT 0',
+                "ALTER TABLE projetos_roadmap ADD COLUMN descricao TEXT DEFAULT ''",
+                'ALTER TABLE projetos_roadmap ADD COLUMN ordem INTEGER DEFAULT 0',
             ]:
                 try:
                     db.session.execute(db.text(stmt))

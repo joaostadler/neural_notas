@@ -17,7 +17,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
+    padding: 10px 20px;
     background: var(--painel);
     border-bottom: 1px solid var(--borda);
     flex-shrink: 0;
@@ -39,11 +39,13 @@
 .rm-back:hover { background: var(--cartao); color: var(--texto); }
 
 .rm-nome {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 700;
     cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: var(--texto);
+    transition: background 0.15s;
 }
 .rm-nome:hover { background: var(--cartao); }
 
@@ -69,8 +71,8 @@
     left: 0;
     z-index: 30;
     height: 48px;
-    background: #0f172a;
-    border-right: 1px solid #334155;
+    background: var(--cartao);
+    border-right: 1px solid var(--borda);
     border-bottom: 2px solid var(--borda);
 }
 
@@ -81,8 +83,6 @@
     height: 48px;
     background: var(--painel);
     border-bottom: 2px solid var(--borda);
-    position: sticky;
-    top: 0;
 }
 
 .rm-period-inner {
@@ -105,10 +105,10 @@
     letter-spacing: 0.06em;
     border-right: 1px solid var(--borda);
     cursor: pointer;
-    transition: background 0.12s;
+    transition: background 0.12s, color 0.12s;
     user-select: none;
 }
-.rm-period-cell:hover { background: var(--cartao); }
+.rm-period-cell:hover { background: var(--cartao); color: var(--destaque); }
 
 /* Linha indicadora de hoje */
 .rm-today-line {
@@ -116,7 +116,7 @@
     top: 0;
     bottom: 0;
     width: 2px;
-    background: #ef4444;
+    background: var(--rosa);
     z-index: 5;
     pointer-events: none;
 }
@@ -125,7 +125,7 @@
     top: 2px;
     font-size: 9px;
     font-weight: 700;
-    color: #ef4444;
+    color: var(--rosa);
     transform: translateX(-50%);
     white-space: nowrap;
 }
@@ -135,16 +135,16 @@
     position: sticky;
     left: 0;
     z-index: 10;
-    background: #1e293b;
-    border-right: 1px solid #334155;
-    border-bottom: 1px solid #334155;
+    background: var(--destaque);
+    border-right: 2px solid rgba(255,255,255,0.15);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
     display: flex;
     align-items: center;
     padding: 0 14px;
     cursor: pointer;
-    transition: background 0.12s;
+    transition: filter 0.15s;
 }
-.rm-row-label-cell:hover { background: #2d3f55; }
+.rm-row-label-cell:hover { filter: brightness(0.88); }
 
 .rm-row-label {
     color: white;
@@ -154,14 +154,13 @@
     letter-spacing: 0.08em;
     line-height: 1.3;
     word-break: break-word;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
-
-.rm-row-label-cell[data-cor] { background: attr(data-cor); }
 
 .rm-row-timeline {
     position: relative;
     border-bottom: 1px solid var(--borda);
-    background: white;
+    background: var(--painel);
     padding: 6px 0;
     min-height: 0;
 }
@@ -174,7 +173,7 @@
     pointer-events: none;
     z-index: 0;
 }
-.rm-col-shade.even { background: rgba(0,0,0,0.018); }
+.rm-col-shade.even { background: rgba(37,99,235,0.025); }
 .rm-col-sep {
     position: absolute;
     top: 0;
@@ -197,6 +196,7 @@
     position: absolute;
     top: 0;
     height: 26px;
+    user-select: none;
     border-radius: 5px;
     display: flex;
     align-items: center;
@@ -209,35 +209,37 @@
     text-overflow: ellipsis;
     cursor: pointer;
     transition: filter 0.15s, box-shadow 0.15s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
     min-width: 4px;
 }
-.rm-bar:hover { filter: brightness(1.12); box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
-.rm-bar.status-concluido { opacity: 0.65; }
-.rm-bar.status-pausado { opacity: 0.5; }
+.rm-bar:hover { filter: brightness(1.1); box-shadow: 0 3px 8px rgba(0,0,0,0.2); }
+.rm-bar.status-concluido { opacity: 0.55; }
+.rm-bar.status-pausado   { opacity: 0.45; filter: grayscale(0.3); }
+.rm-bar-dragging  { opacity: 0.35; }
+.rm-bar-drag-over { outline: 2px solid white; outline-offset: 2px; }
 
 /* ── Add row button ───────────────────────────────────── */
 .rm-add-row-cell {
     position: sticky;
     left: 0;
     z-index: 10;
-    background: #0f172a;
-    border-right: 1px solid #334155;
+    background: var(--cartao);
+    border-right: 2px solid var(--borda);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 8px;
 }
 .rm-add-row-timeline {
-    background: #f8fafc;
+    background: var(--bg);
     border-bottom: none;
     min-height: 44px;
 }
 
 .rm-btn-add-row {
     background: none;
-    border: 1px dashed #334155;
-    color: #94a3b8;
+    border: 1px dashed var(--borda);
+    color: var(--apagado);
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
@@ -245,10 +247,14 @@
     padding: 5px 10px;
     width: 100%;
     text-align: center;
-    transition: border-color 0.12s, color 0.12s;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
     font-family: inherit;
 }
-.rm-btn-add-row:hover { border-color: #94a3b8; color: white; }
+.rm-btn-add-row:hover {
+    border-color: var(--destaque);
+    color: var(--destaque);
+    background: rgba(37,99,235,0.04);
+}
 
 /* ── Estado vazio ─────────────────────────────────────── */
 .rm-empty-state {
@@ -263,7 +269,7 @@
 .rm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.45);
+    background: rgba(15,23,42,0.4);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -276,15 +282,18 @@
     width: 100%;
     max-width: 420px;
     box-shadow: var(--shadow-lg);
+    border: 1px solid var(--borda);
 }
 .rm-modal-lg { max-width: 520px; }
-.rm-modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+.rm-modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; color: var(--texto); }
 .rm-modal-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 8px;
     margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--borda);
 }
 .rm-modal-footer-right { display: flex; gap: 8px; }
 
@@ -298,7 +307,6 @@
 
 .rm-date-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-/* Garante que o atributo hidden funciona mesmo com display:flex no elemento */
 [hidden] { display: none !important; }
 
 .btn-danger { background: var(--rosa); color: white; }
@@ -308,20 +316,24 @@
 .rm-switch-wrap { position: relative; }
 .rm-switch-btn {
     background: none;
-    border: 1px solid #334155;
-    color: #94a3b8;
-    border-radius: 6px;
+    border: 1px solid var(--borda);
+    color: var(--apagado);
+    border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    padding: 5px 10px;
+    padding: 6px 12px;
     font-family: inherit;
-    transition: background 0.12s, color 0.12s;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
     display: flex;
     align-items: center;
     gap: 5px;
 }
-.rm-switch-btn:hover { background: #1e293b; color: white; }
+.rm-switch-btn:hover {
+    background: var(--cartao);
+    color: var(--texto);
+    border-color: var(--destaque);
+}
 .rm-switch-menu {
     position: absolute;
     top: calc(100% + 6px);
@@ -330,7 +342,7 @@
     border: 1px solid var(--borda);
     border-radius: 10px;
     box-shadow: var(--shadow-lg);
-    min-width: 200px;
+    min-width: 220px;
     z-index: 100;
     overflow: hidden;
 }
@@ -351,7 +363,7 @@
 .rm-switch-item:hover { background: var(--cartao); }
 .rm-switch-item.ativo { font-weight: 700; color: var(--destaque); }
 .rm-switch-divider { height: 1px; background: var(--borda); margin: 4px 0; }
-.rm-switch-new { color: var(--destaque); }
+.rm-switch-new { color: var(--destaque); font-weight: 600; }
 
 /* ── Linha de roadmap no switcher ─── */
 .rm-switch-row {
@@ -374,14 +386,14 @@
     background: none;
     cursor: pointer;
     padding: 0 12px 0 4px;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1;
-    color: #334155;
+    color: var(--borda);
     transition: color 0.12s, transform 0.1s;
     flex-shrink: 0;
 }
-.rm-star-btn:hover { color: #f59e0b; transform: scale(1.15); }
-.rm-star-btn.rm-star-on { color: #f59e0b; }
+.rm-star-btn:hover { color: var(--ambar); transform: scale(1.15); }
+.rm-star-btn.rm-star-on { color: var(--ambar); }
 
 /* ── Grade 3 colunas (subgrupos) ─────────────────────── */
 .rm-grid-3col { grid-template-columns: 170px 130px 1fr; }
@@ -390,8 +402,8 @@
 .rm-label-wrap { display: flex; flex-direction: column; gap: 5px; width: 100%; }
 .rm-btn-sub-add {
     background: none;
-    border: 1px dashed rgba(255,255,255,0.2);
-    color: rgba(255,255,255,0.35);
+    border: 1px dashed rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.45);
     border-radius: 4px;
     font-size: 9px;
     font-weight: 600;
@@ -402,16 +414,16 @@
     transition: color 0.12s, border-color 0.12s;
     letter-spacing: 0.04em;
 }
-.rm-btn-sub-add:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.4); }
+.rm-btn-sub-add:hover { color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.6); }
 
 /* Célula de subgrupo */
 .rm-subgrupo-cell {
     position: sticky;
     left: 170px;
     z-index: 9;
-    background: #162032;
-    border-right: 1px solid #334155;
-    border-bottom: 1px solid #334155;
+    background: var(--cartao);
+    border-right: 1px solid var(--borda);
+    border-bottom: 1px solid var(--borda);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -419,9 +431,9 @@
     cursor: pointer;
     transition: background 0.12s;
 }
-.rm-subgrupo-cell:hover { background: #1a2a40; }
+.rm-subgrupo-cell:hover { background: var(--borda); }
 .rm-subgrupo-nome {
-    color: #94a3b8;
+    color: var(--apagado);
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -431,7 +443,7 @@
     white-space: nowrap;
 }
 .rm-subgrupo-btn-add {
-    color: #475569;
+    color: var(--apagado);
     font-size: 18px;
     line-height: 1;
     font-weight: 400;
@@ -442,11 +454,108 @@
     flex-shrink: 0;
     transition: color 0.12s;
 }
-.rm-subgrupo-btn-add:hover { color: #94a3b8; }
+.rm-subgrupo-btn-add:hover { color: var(--destaque); }
 .rm-subgrupo-placeholder { cursor: pointer; }
-.rm-subgrupo-placeholder:hover .rm-subgrupo-nome { color: #64748b; }
+.rm-subgrupo-placeholder:hover .rm-subgrupo-nome { color: var(--destaque); }
 .rm-subgrupo-sem-label { cursor: default; }
-.rm-subgrupo-sem-label:hover { background: #162032; }
+.rm-subgrupo-sem-label:hover { background: var(--cartao); }
+
+/* ── Cartões vinculados ───────────────────────────────── */
+.rm-cartoes-lista {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+    min-height: 4px;
+}
+.rm-cartao-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--cartao);
+    border: 1px solid var(--borda);
+    border-radius: 20px;
+    padding: 3px 6px 3px 10px;
+    font-size: 12px;
+    color: var(--texto);
+    max-width: 100%;
+}
+.rm-cartao-chip-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.rm-cartao-chip-titulo {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+    font-size: 12px;
+}
+.rm-cartao-chip-col {
+    font-size: 10px;
+    color: var(--apagado);
+}
+.rm-cartao-chip-link {
+    color: var(--destaque);
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: opacity 0.1s;
+}
+.rm-cartao-chip-link:hover { opacity: 1; }
+.rm-cartao-chip-rem {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--apagado);
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+    flex-shrink: 0;
+    transition: color 0.1s;
+}
+.rm-cartao-chip-rem:hover { color: var(--rosa); }
+
+.rm-cartao-search-wrap { position: relative; }
+.rm-cartao-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    z-index: 300;
+    overflow: hidden;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.rm-cartao-result-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: background 0.1s;
+}
+.rm-cartao-result-item:hover { background: var(--cartao); }
+.rm-cartao-result-titulo { font-size: 13px; color: var(--texto); }
+.rm-cartao-result-col { font-size: 11px; color: var(--apagado); }
+.rm-cartao-result-none {
+    padding: 12px;
+    font-size: 13px;
+    color: var(--apagado);
+    text-align: center;
+}
 </style>
 {% endblock %}
 
@@ -576,9 +685,11 @@
                         {% endif %}
                         {% endfor %}
                         <div class="rm-today-line rm-today-row" style="display:none"></div>
-                        {% for proj in sub.projetos %}
+                        {% for track in sub.tracks %}
                         <div class="rm-track">
+                            {% for proj in track %}
                             <div class="rm-bar status-{{ proj.status }}"
+                                 draggable="true"
                                  style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
                                  data-id="{{ proj.id }}"
                                  data-nome="{{ proj.nome }}"
@@ -592,6 +703,7 @@
                                  title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
                                 {{ proj.nome }}
                             </div>
+                            {% endfor %}
                         </div>
                         {% endfor %}
                     </div>
@@ -616,9 +728,11 @@
                         {% endif %}
                         {% endfor %}
                         <div class="rm-today-line rm-today-row" style="display:none"></div>
-                        {% for proj in linha.projetos %}
+                        {% for track in linha.tracks %}
                         <div class="rm-track">
+                            {% for proj in track %}
                             <div class="rm-bar status-{{ proj.status }}"
+                                 draggable="true"
                                  style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
                                  data-id="{{ proj.id }}"
                                  data-nome="{{ proj.nome }}"
@@ -632,6 +746,7 @@
                                  title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
                                 {{ proj.nome }}
                             </div>
+                            {% endfor %}
                         </div>
                         {% endfor %}
                     </div>
@@ -651,9 +766,11 @@
                         {% endif %}
                         {% endfor %}
                         <div class="rm-today-line rm-today-row" style="display:none"></div>
-                        {% for proj in linha.projetos %}
+                        {% for track in linha.tracks %}
                         <div class="rm-track">
+                            {% for proj in track %}
                             <div class="rm-bar status-{{ proj.status }}"
+                                 draggable="true"
                                  style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
                                  data-id="{{ proj.id }}"
                                  data-nome="{{ proj.nome }}"
@@ -667,11 +784,12 @@
                                  title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
                                 {{ proj.nome }}
                             </div>
+                            {% endfor %}
                         </div>
                         {% endfor %}
                         <div class="rm-track" style="height:22px;margin-top:4px;">
                             <button class="rm-bar"
-                                    style="left:0;width:auto;background:transparent;border:1px dashed #cbd5e1;color:#94a3b8;font-size:10px;cursor:pointer;min-width:80px;"
+                                    style="left:0;width:auto;background:transparent;border:1px dashed var(--borda);color:var(--apagado);font-size:10px;cursor:pointer;min-width:80px;"
                                     onclick="abrirAddProjetoNaLinha({{ linha.id }},null)">
                                 + projeto
                             </button>
@@ -690,9 +808,11 @@
                     {% endif %}
                     {% endfor %}
                     <div class="rm-today-line rm-today-row" style="display:none"></div>
-                    {% for proj in linha.projetos %}
+                    {% for track in linha.tracks %}
                     <div class="rm-track">
+                        {% for proj in track %}
                         <div class="rm-bar status-{{ proj.status }}"
+                             draggable="true"
                              style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
                              data-id="{{ proj.id }}"
                              data-nome="{{ proj.nome }}"
@@ -706,11 +826,12 @@
                              title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
                             {{ proj.nome }}
                         </div>
+                        {% endfor %}
                     </div>
                     {% endfor %}
                     <div class="rm-track" style="height:22px;margin-top:4px;">
                         <button class="rm-bar"
-                                style="left:0;width:auto;background:transparent;border:1px dashed #cbd5e1;color:#94a3b8;font-size:10px;cursor:pointer;min-width:80px;"
+                                style="left:0;width:auto;background:transparent;border:1px dashed var(--borda);color:var(--apagado);font-size:10px;cursor:pointer;min-width:80px;"
                                 onclick="abrirAddProjetoNaLinha({{ linha.id }},null)">
                             + projeto
                         </button>
@@ -820,7 +941,7 @@
         <input type="hidden" id="projetoIdEdit">
         <!-- Aviso sem linhas (controlado via JS) -->
         <div id="avisoSemLinhas" style="display:none">
-            <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#713f12;">
+            <div class="alert alert-aviso" style="margin-bottom:16px;font-size:13px;">
                 Nenhuma linha cadastrada. Adicione uma <strong>Linha</strong> antes de criar projetos.
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px">
@@ -874,6 +995,21 @@
                     </div>
                 </div>
             </div>
+            <div class="form-group">
+                <label>Descrição</label>
+                <textarea id="inputProjetoDesc" rows="2" style="resize:vertical"
+                          placeholder="Contexto, metas, links relevantes..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Cartões do Kanban vinculados</label>
+                <div id="projetoCartoesList" class="rm-cartoes-lista"></div>
+                <div class="rm-cartao-search-wrap">
+                    <input type="text" id="inputCartaoSearch"
+                           placeholder="Buscar cartão por título..."
+                           autocomplete="off">
+                    <div id="cartaoSearchResults" class="rm-cartao-results" hidden></div>
+                </div>
+            </div>
         </div>
         <div class="rm-modal-footer">
             <button class="btn btn-danger btn-sm" id="btnDeleteProjeto" style="display:none" onclick="deletarProjeto()">Excluir</button>
@@ -911,7 +1047,7 @@
 const RM_ID = {{ roadmap.id }};
 const BASE = `/roadmap/${RM_ID}`;
 const SUBGRUPOS_MAP = {{ subgrupos_map|tojson }};
-const RM_TOTAL_ROWS = {{ total_rows }};
+const RM_ROW_TRACKS = {{ row_tracks|tojson }};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -940,22 +1076,44 @@ async function api(path, method, body) {
 
 function reload() { location.reload(); }
 
-// ── Altura das linhas (preenche o viewport) ────────────────────────────────
+// ── Altura das linhas ─────────────────────────────────────────────────────
+// Cada track ocupa: 26px barra + 3px margem colapsada = 29px
+// Cada linha precisa de: 15px base (padding + margem topo) + n_tracks × 29px
+// Se sobrar espaço no viewport, distribui o excedente proporcionalmente.
+// Se faltar espaço, usa os mínimos e o wrapper já tem overflow:auto.
 
 function ajustarAlturaLinhas() {
-    if (!RM_TOTAL_ROWS) return;
+    if (!RM_ROW_TRACKS.length) return;
     const grid = document.getElementById('rmGrid');
     if (!grid) return;
-    const wrap = grid.parentElement;
-    const HEADER_H = 48;
-    const ADDROW_H = 44;
-    const available = wrap.clientHeight - HEADER_H - ADDROW_H;
-    const rowH = Math.max(64, Math.floor(available / RM_TOTAL_ROWS));
-    grid.style.gridTemplateRows = `${HEADER_H}px repeat(${RM_TOTAL_ROWS}, ${rowH}px) ${ADDROW_H}px`;
+
+    const HEADER_H = 48, ADDROW_H = 44;
+    const ROW_BASE = 15, TRACK_H = 29;
+
+    // Mínimo exato para cada linha não estourar seu conteúdo
+    const minHeights = RM_ROW_TRACKS.map(n => ROW_BASE + n * TRACK_H);
+    const totalMin   = minHeights.reduce((a, b) => a + b, 0);
+
+    const available = grid.parentElement.clientHeight - HEADER_H - ADDROW_H;
+    const excess     = available - totalMin;
+
+    let heights;
+    if (excess > 0) {
+        // Viewport maior que o necessário: distribui o excedente por track
+        const totalTracks = RM_ROW_TRACKS.reduce((a, b) => a + b, 0) || 1;
+        heights = minHeights.map((h, i) =>
+            h + Math.floor(excess * RM_ROW_TRACKS[i] / totalTracks));
+    } else {
+        // Viewport menor: usa os mínimos (wrapper faz scroll)
+        heights = minHeights;
+    }
+
+    const rows = heights.map(h => h + 'px').join(' ');
+    grid.style.gridTemplateRows = `${HEADER_H}px ${rows} ${ADDROW_H}px`;
 }
 
 window.addEventListener('resize', ajustarAlturaLinhas);
-ajustarAlturaLinhas();
+requestAnimationFrame(ajustarAlturaLinhas);
 
 // ── Linha indicadora de hoje ───────────────────────────────────────────────
 
@@ -1168,6 +1326,14 @@ function _prepararModalProjeto() {
     return temLinhas;
 }
 
+function _limparModalProjeto() {
+    document.getElementById('inputProjetoDesc').value = '';
+    document.getElementById('inputCartaoSearch').value = '';
+    document.getElementById('cartaoSearchResults').hidden = true;
+    projetoCartoesVinculados = [];
+    renderCartoesChips();
+}
+
 document.getElementById('btnAddProjeto').addEventListener('click', () => abrirAddProjetoNaLinha(null, null));
 
 function abrirAddProjetoNaLinha(linhaId, subgrupoId) {
@@ -1179,6 +1345,7 @@ function abrirAddProjetoNaLinha(linhaId, subgrupoId) {
     document.getElementById('inputProjetoCor').value = '#16a34a';
     document.getElementById('inputProjetoStatus').value = 'ativo';
     document.getElementById('btnDeleteProjeto').style.display = 'none';
+    _limparModalProjeto();
     const linhaSelect = document.getElementById('inputProjetoLinha');
     if (linhaId) linhaSelect.value = String(linhaId);
     const efetiva = linhaId || (linhaSelect.options[0] && linhaSelect.options[0].value);
@@ -1198,10 +1365,18 @@ function abrirEditProjeto(el) {
     document.getElementById('inputProjetoCor').value = el.dataset.cor;
     document.getElementById('inputProjetoStatus').value = el.dataset.status;
     document.getElementById('btnDeleteProjeto').style.display = '';
+    _limparModalProjeto();
     atualizarSelectSubgrupo(el.dataset.linha, el.dataset.subgrupo || null);
     _prepararModalProjeto();
     abrirModal('modalProjeto');
     setTimeout(() => document.getElementById('inputProjetoNome').focus(), 50);
+    // Carrega descrição e cartões vinculados via API
+    api(`${BASE}/projetos/${el.dataset.id}`, 'GET').then(({ ok, data }) => {
+        if (!ok) return;
+        document.getElementById('inputProjetoDesc').value = data.descricao || '';
+        projetoCartoesVinculados = data.cartoes || [];
+        renderCartoesChips();
+    });
 }
 
 async function salvarProjeto() {
@@ -1214,6 +1389,8 @@ async function salvarProjeto() {
     const status = document.getElementById('inputProjetoStatus').value;
     const subVal = document.getElementById('inputProjetoSubgrupo').value;
     const id_subgrupo = subVal ? parseInt(subVal) : null;
+    const descricao = document.getElementById('inputProjetoDesc').value;
+    const cartoes_ids = projetoCartoesVinculados.map(c => c.id);
 
     if (!nome || !data_inicio || !data_fim) {
         alert('Preencha nome, data de início e data de fim.');
@@ -1226,7 +1403,8 @@ async function salvarProjeto() {
 
     const url = id ? `${BASE}/projetos/${id}` : `${BASE}/projetos`;
     const method = id ? 'PUT' : 'POST';
-    const { ok, data } = await api(url, method, { nome, id_linha, id_subgrupo, data_inicio, data_fim, cor, status });
+    const { ok, data } = await api(url, method,
+        { nome, id_linha, id_subgrupo, data_inicio, data_fim, cor, status, descricao, cartoes_ids });
     if (ok) reload();
     else alert(data.erro || 'Erro ao salvar projeto.');
 }
@@ -1237,6 +1415,77 @@ async function deletarProjeto() {
     const { ok } = await api(`${BASE}/projetos/${id}`, 'DELETE');
     if (ok) reload();
 }
+
+// ── Cartões vinculados ────────────────────────────────────────────────────
+
+let projetoCartoesVinculados = [];
+
+function renderCartoesChips() {
+    const lista = document.getElementById('projetoCartoesList');
+    lista.innerHTML = '';
+    projetoCartoesVinculados.forEach(c => {
+        const chip = document.createElement('span');
+        chip.className = 'rm-cartao-chip';
+        chip.innerHTML = `
+            <a href="/kanban" target="_blank" class="rm-cartao-chip-link" title="Abrir no Kanban">↗</a>
+            <span class="rm-cartao-chip-info">
+                <span class="rm-cartao-chip-titulo">${c.titulo}</span>
+                <span class="rm-cartao-chip-col">${c.coluna}</span>
+            </span>
+            <button class="rm-cartao-chip-rem" title="Remover vínculo"
+                    onclick="removerCartaoVinculado(${c.id})">×</button>
+        `;
+        lista.appendChild(chip);
+    });
+}
+
+function removerCartaoVinculado(id) {
+    projetoCartoesVinculados = projetoCartoesVinculados.filter(c => c.id !== id);
+    renderCartoesChips();
+}
+
+let _searchTimer = null;
+document.getElementById('inputCartaoSearch').addEventListener('input', function () {
+    clearTimeout(_searchTimer);
+    const q = this.value.trim();
+    const results = document.getElementById('cartaoSearchResults');
+    if (q.length < 2) { results.hidden = true; return; }
+    _searchTimer = setTimeout(async () => {
+        const { ok, data } = await api(`/roadmap/cartoes/buscar?q=${encodeURIComponent(q)}`, 'GET');
+        results.innerHTML = '';
+        if (!ok || !data.length) {
+            results.innerHTML = '<div class="rm-cartao-result-none">Nenhum cartão encontrado</div>';
+        } else {
+            data.forEach(c => {
+                if (projetoCartoesVinculados.some(v => v.id === c.id)) return;
+                const btn = document.createElement('button');
+                btn.className = 'rm-cartao-result-item';
+                btn.innerHTML = `
+                    <span class="rm-cartao-result-titulo">${c.titulo}</span>
+                    <span class="rm-cartao-result-col">${c.coluna}</span>
+                `;
+                btn.onclick = () => {
+                    projetoCartoesVinculados.push(c);
+                    renderCartoesChips();
+                    document.getElementById('inputCartaoSearch').value = '';
+                    results.hidden = true;
+                };
+                results.appendChild(btn);
+            });
+            if (!results.children.length) {
+                results.innerHTML = '<div class="rm-cartao-result-none">Todos já vinculados</div>';
+            }
+        }
+        results.hidden = false;
+    }, 280);
+});
+
+document.addEventListener('click', e => {
+    const wrap = document.getElementById('inputCartaoSearch')?.closest('.rm-cartao-search-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('cartaoSearchResults').hidden = true;
+    }
+});
 
 // ── Subgrupo ───────────────────────────────────────────────────────────────
 
@@ -1279,6 +1528,49 @@ async function deletarSubgrupo() {
     const { ok } = await api(`${BASE}/linhas/${linhaId}/subgrupos/${id}`, 'DELETE');
     if (ok) reload();
 }
+
+// ── Drag-and-drop para reordenar projetos ─────────────────────────────────
+
+let _dragSrcId = null;
+
+function initDragDrop() {
+    document.querySelectorAll('.rm-bar[data-id]').forEach(bar => {
+        bar.addEventListener('dragstart', e => {
+            _dragSrcId = bar.dataset.id;
+            bar.classList.add('rm-bar-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        bar.addEventListener('dragend', () => {
+            bar.classList.remove('rm-bar-dragging');
+            document.querySelectorAll('.rm-bar-drag-over').forEach(el =>
+                el.classList.remove('rm-bar-drag-over'));
+        });
+        bar.addEventListener('dragover', e => {
+            if (!_dragSrcId || bar.dataset.id === _dragSrcId) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            document.querySelectorAll('.rm-bar-drag-over').forEach(el =>
+                el.classList.remove('rm-bar-drag-over'));
+            bar.classList.add('rm-bar-drag-over');
+        });
+        bar.addEventListener('dragleave', () => {
+            bar.classList.remove('rm-bar-drag-over');
+        });
+        bar.addEventListener('drop', async e => {
+            e.preventDefault();
+            const targetId = bar.dataset.id;
+            if (!_dragSrcId || _dragSrcId === targetId) return;
+            bar.classList.remove('rm-bar-drag-over');
+            const { ok } = await api(
+                `${BASE}/projetos/${_dragSrcId}/reordenar`, 'PUT',
+                { swap_com: parseInt(targetId) }
+            );
+            if (ok) reload();
+        });
+    });
+}
+
+initDragDrop();
 
 // ── Atalhos de teclado ─────────────────────────────────────────────────────
 

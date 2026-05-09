@@ -5,7 +5,8 @@ from datetime import date
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from models import ColunaRoadmap, LinhaRoadmap, ProjetoRoadmap, Roadmap, SubgrupoRoadmap, db
+from models import (CartaoKanban, ColunaKanban, ColunaRoadmap, LinhaRoadmap,
+                    ProjetoRoadmap, Roadmap, SubgrupoRoadmap, db)
 
 bp_roadmap = Blueprint('roadmap', __name__, url_prefix='/roadmap')
 
@@ -21,6 +22,25 @@ def _parse_date(valor):
         return None
 
 
+def _pack_tracks(projetos_dicts):
+    """Greedy track packing: returns list of tracks (each track = list of proj dicts).
+    Projects must be pre-sorted by (ordem, data_inicio).
+    Non-overlapping projects share a track; overlapping go to separate tracks.
+    """
+    tracks = []  # list of (proj_list, track_end_date_str)
+    for proj in projetos_dicts:
+        placed = False
+        for i, (track, end) in enumerate(tracks):
+            if proj['data_inicio'] > end:
+                track.append(proj)
+                tracks[i] = (track, proj['data_fim'])
+                placed = True
+                break
+        if not placed:
+            tracks.append(([proj], proj['data_fim']))
+    return [t for t, _ in tracks]
+
+
 def _posicoes(roadmap):
     colunas = sorted(roadmap.colunas, key=lambda c: c.ordem)
     linhas = sorted(roadmap.linhas, key=lambda l: l.ordem)
@@ -32,6 +52,8 @@ def _posicoes(roadmap):
             'data_inicio': str(p.data_inicio), 'data_fim': str(p.data_fim),
             'cor': p.cor, 'status': p.status,
             'id_subgrupo': p.id_subgrupo,
+            'descricao': p.descricao or '',
+            'ordem': p.ordem or 0,
             'left_pct': left, 'width_pct': width,
         }
 
@@ -41,8 +63,11 @@ def _posicoes(roadmap):
             subs = sorted(l.subgrupos, key=lambda s: s.ordem)
             linhas_data.append({
                 'id': l.id, 'nome': l.nome, 'cor': l.cor,
-                'projetos': [],
-                'subgrupos': [{'id': s.id, 'nome': s.nome, 'projetos': []} for s in subs],
+                'projetos': [], 'tracks': [], 'n_tracks': 0,
+                'subgrupos': [
+                    {'id': s.id, 'nome': s.nome, 'projetos': [], 'tracks': [], 'n_tracks': 0}
+                    for s in subs
+                ],
             })
         return [], linhas_data, tem_subgrupos
 
@@ -74,20 +99,29 @@ def _posicoes(roadmap):
     linhas_data = []
     for l in linhas:
         subs = sorted(l.subgrupos, key=lambda s: s.ordem)
-        # Projetos sem subgrupo (diretos na linha)
+        # Projetos sem subgrupo (diretos na linha), ordenados por (ordem, data_inicio)
         diretos = [calcular(p) for p in sorted(
             (p for p in l.projetos if p.id_subgrupo is None),
-            key=lambda x: x.data_inicio,
+            key=lambda x: (x.ordem or 0, x.data_inicio),
         )]
+        direto_tracks = _pack_tracks(diretos)
         # Projetos por subgrupo
         subgrupos_data = []
         for s in subs:
-            ps = [calcular(p) for p in sorted(s.projetos, key=lambda x: x.data_inicio)]
-            subgrupos_data.append({'id': s.id, 'nome': s.nome, 'projetos': ps})
+            ps = [calcular(p) for p in sorted(
+                s.projetos, key=lambda x: (x.ordem or 0, x.data_inicio)
+            )]
+            sub_tracks = _pack_tracks(ps)
+            subgrupos_data.append({
+                'id': s.id, 'nome': s.nome,
+                'projetos': ps, 'tracks': sub_tracks, 'n_tracks': len(sub_tracks),
+            })
 
         linhas_data.append({
             'id': l.id, 'nome': l.nome, 'cor': l.cor,
             'projetos': diretos,
+            'tracks': direto_tracks,
+            'n_tracks': len(direto_tracks),
             'subgrupos': subgrupos_data,
         })
 
@@ -139,13 +173,22 @@ def ver(roadmap_id):
         str(l['id']): l['subgrupos']
         for l in linhas_data
     }
-    if tem_subgrupos:
-        total_rows = sum(
-            max(len(l['subgrupos']) + (1 if l['projetos'] else 0), 1)
-            for l in linhas_data
-        )
-    else:
-        total_rows = len(linhas_data)
+    # Build row_tracks: n_tracks per CSS grid row (same order as template renders rows)
+    row_tracks = []
+    for l in linhas_data:
+        n_subs = len(l['subgrupos'])
+        tem_diretos = len(l['projetos']) > 0
+        if tem_subgrupos:
+            if n_subs > 0:
+                for sub in l['subgrupos']:
+                    row_tracks.append(max(sub['n_tracks'], 1))
+                if tem_diretos:
+                    row_tracks.append(max(l['n_tracks'], 1))
+            else:
+                row_tracks.append(max(l['n_tracks'], 1))
+        else:
+            row_tracks.append(max(l['n_tracks'], 1))
+    total_rows = len(row_tracks)
     return render_template('roadmap/roadmap.html',
                            roadmap=r,
                            todos_roadmaps=todos_roadmaps,
@@ -153,6 +196,7 @@ def ver(roadmap_id):
                            linhas_data=linhas_data,
                            tem_subgrupos=tem_subgrupos,
                            subgrupos_map=subgrupos_map,
+                           row_tracks=row_tracks,
                            total_rows=total_rows)
 
 
@@ -327,6 +371,36 @@ def deletar_coluna(roadmap_id, coluna_id):
 
 # ── Projetos ──────────────────────────────────────────────────────────────────
 
+@bp_roadmap.route('/cartoes/buscar')
+@login_required
+def buscar_cartoes():
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify([])
+    cartoes = (CartaoKanban.query
+               .join(ColunaKanban, CartaoKanban.id_coluna == ColunaKanban.id)
+               .filter(ColunaKanban.id_usuario == current_user.id,
+                       CartaoKanban.titulo.ilike(f'%{q}%'))
+               .order_by(CartaoKanban.titulo)
+               .limit(8).all())
+    return jsonify([
+        {'id': c.id, 'titulo': c.titulo, 'coluna': c.coluna.nome}
+        for c in cartoes
+    ])
+
+
+def _vincular_cartoes(projeto, cartoes_ids):
+    if not cartoes_ids:
+        projeto.cartoes = []
+        return
+    cartoes = (CartaoKanban.query
+               .join(ColunaKanban, CartaoKanban.id_coluna == ColunaKanban.id)
+               .filter(CartaoKanban.id.in_(cartoes_ids),
+                       ColunaKanban.id_usuario == current_user.id)
+               .all())
+    projeto.cartoes = cartoes
+
+
 @bp_roadmap.route('/<int:roadmap_id>/projetos', methods=['POST'])
 @login_required
 def criar_projeto(roadmap_id):
@@ -347,17 +421,24 @@ def criar_projeto(roadmap_id):
     if id_subgrupo:
         sub = SubgrupoRoadmap.query.filter_by(id=id_subgrupo, id_linha=id_linha).first()
         id_subgrupo = sub.id if sub else None
+    max_ordem = (db.session.query(db.func.max(ProjetoRoadmap.ordem))
+                 .filter_by(id_roadmap=roadmap_id, id_linha=id_linha, id_subgrupo=id_subgrupo)
+                 .scalar() or 0)
     projeto = ProjetoRoadmap(
         id_roadmap=roadmap_id,
         id_linha=id_linha,
         id_subgrupo=id_subgrupo,
         nome=nome,
+        descricao=dados.get('descricao', ''),
+        ordem=max_ordem + 1,
         data_inicio=data_inicio,
         data_fim=data_fim,
         cor=dados.get('cor', '#16a34a'),
         status=dados.get('status', 'ativo'),
     )
     db.session.add(projeto)
+    db.session.flush()  # gera o id antes de vincular
+    _vincular_cartoes(projeto, dados.get('cartoes_ids') or [])
     db.session.commit()
     return jsonify({
         'id': projeto.id,
@@ -367,6 +448,25 @@ def criar_projeto(roadmap_id):
         'cor': projeto.cor,
         'status': projeto.status,
     }), 201
+
+
+@bp_roadmap.route('/<int:roadmap_id>/projetos/<int:projeto_id>', methods=['GET'])
+@login_required
+def detalhe_projeto(roadmap_id, projeto_id):
+    r = _roadmap_do_usuario(roadmap_id)
+    if not r:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    projeto = ProjetoRoadmap.query.filter_by(id=projeto_id, id_roadmap=roadmap_id).first()
+    if not projeto:
+        return jsonify({'erro': 'Projeto não encontrado'}), 404
+    return jsonify({
+        'id': projeto.id,
+        'descricao': projeto.descricao or '',
+        'cartoes': [
+            {'id': c.id, 'titulo': c.titulo, 'coluna': c.coluna.nome}
+            for c in projeto.cartoes
+        ],
+    })
 
 
 @bp_roadmap.route('/<int:roadmap_id>/projetos/<int:projeto_id>', methods=['PUT'])
@@ -405,6 +505,10 @@ def atualizar_projeto(roadmap_id, projeto_id):
             projeto.id_subgrupo = sub.id if sub else None
         else:
             projeto.id_subgrupo = None
+    if 'descricao' in dados:
+        projeto.descricao = dados['descricao']
+    if 'cartoes_ids' in dados:
+        _vincular_cartoes(projeto, dados['cartoes_ids'] or [])
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -419,6 +523,29 @@ def deletar_projeto(roadmap_id, projeto_id):
     if not projeto:
         return jsonify({'erro': 'Projeto não encontrado'}), 404
     db.session.delete(projeto)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@bp_roadmap.route('/<int:roadmap_id>/projetos/<int:projeto_id>/reordenar', methods=['PUT'])
+@login_required
+def reordenar_projeto(roadmap_id, projeto_id):
+    r = _roadmap_do_usuario(roadmap_id)
+    if not r:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    projeto = ProjetoRoadmap.query.filter_by(
+        id=projeto_id, id_roadmap=roadmap_id).first()
+    if not projeto:
+        return jsonify({'erro': 'Projeto não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    swap_com = dados.get('swap_com')
+    if not swap_com:
+        return jsonify({'erro': 'swap_com é obrigatório'}), 400
+    outro = ProjetoRoadmap.query.filter_by(
+        id=swap_com, id_roadmap=roadmap_id).first()
+    if not outro:
+        return jsonify({'erro': 'Projeto alvo não encontrado'}), 404
+    projeto.ordem, outro.ordem = outro.ordem, projeto.ordem
     db.session.commit()
     return jsonify({'ok': True})
 
