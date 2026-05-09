@@ -1,6 +1,7 @@
 """app/routes/kanban.py — Rotas do quadro Kanban."""
 
 import os
+from datetime import date
 from io import BytesIO
 from uuid import uuid4
 
@@ -245,6 +246,15 @@ def editar_cartao(id):
         cartao.etiquetas = dados['etiquetas']
     if 'prioridade' in dados and dados['prioridade'] in ('baixa', 'media', 'alta'):
         cartao.prioridade = dados['prioridade']
+    if 'data_conclusao' in dados:
+        dc = dados['data_conclusao']
+        if dc:
+            try:
+                cartao.data_conclusao = date.fromisoformat(dc)
+            except (ValueError, TypeError):
+                pass
+        else:
+            cartao.data_conclusao = None
 
     db.session.commit()
     return jsonify({'ok': True})
@@ -293,8 +303,11 @@ def mover_cartao(id):
 
     if nova_coluna_id == ultima_coluna_id:
         cartao.observacoes_conclusao = observacoes_conclusao
+        if cartao.data_conclusao is None:
+            cartao.data_conclusao = date.today()
     elif coluna_antiga == ultima_coluna_id:
         cartao.observacoes_conclusao = ''
+        cartao.data_conclusao = None
 
     if coluna_antiga != nova_coluna_id:
         nova_coluna = _coluna_do_usuario(nova_coluna_id)

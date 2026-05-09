@@ -114,6 +114,7 @@
                      data-prioridade="{{ cartao.prioridade }}"
                      data-criado="{{ cartao.criado_em.strftime('%Y-%m-%d') }}"
                      data-obs-conclusao="{{ (cartao.observacoes_conclusao or '')|e }}"
+                     data-data-conclusao="{{ cartao.data_conclusao.isoformat() if cartao.data_conclusao else (conclusoes[cartao.id].strftime('%Y-%m-%d') if conclusoes.get(cartao.id) else '') }}"
                      {% if not readonly %}ondragstart="onDragStart(event)" ondragend="onDragEnd(event)"{% endif %}>
 
                     <div class="kb-card-prio-bar prio-{{ cartao.prioridade }}"></div>
@@ -135,8 +136,16 @@
                         </div>
                         <div class="kb-card-dates">
                             <span class="kb-date-item">📅 Criado: {{ cartao.criado_em.strftime('%d/%m/%Y') }}</span>
-                            {% if col.id == ultima_coluna_id and conclusoes.get(cartao.id) %}
-                            <span class="kb-date-item kb-date-conclusao">✓ Concluído: {{ conclusoes[cartao.id].strftime('%d/%m/%Y') }}</span>
+                            {% if col.id == ultima_coluna_id %}
+                            <label class="kb-date-item kb-date-conclusao" onclick="event.stopPropagation()">
+                                ✓ Concluído:
+                                <input type="date"
+                                       class="kb-date-conc-input"
+                                       value="{{ cartao.data_conclusao.isoformat() if cartao.data_conclusao else (conclusoes[cartao.id].strftime('%Y-%m-%d') if conclusoes.get(cartao.id) else '') }}"
+                                       data-id="{{ cartao.id }}"
+                                       onclick="event.stopPropagation()"
+                                       onchange="salvarDataConclusao(this)">
+                            </label>
                             {% endif %}
                         </div>
                         {% if col.id == ultima_coluna_id and cartao.observacoes_conclusao %}
@@ -472,7 +481,26 @@
 .kb-date-conclusao {
     color: #16a34a;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
+
+.kb-date-conc-input {
+    border: none;
+    background: transparent;
+    font-size: 10px;
+    font-family: inherit;
+    color: #16a34a;
+    font-weight: 600;
+    padding: 1px 3px;
+    cursor: pointer;
+    outline: none;
+    border-radius: 3px;
+    transition: background 0.12s;
+}
+.kb-date-conc-input:hover { background: rgba(22,163,74,0.08); }
+.kb-date-conc-input:focus { background: rgba(22,163,74,0.12); }
 
 .kb-obs-conclusao {
     margin-top: 6px;
@@ -1504,8 +1532,10 @@ function injetarCartao(colId, cartao) {
     const criadoFmt = `${dia}/${mes}/${ano}`;
 
     const ultimaColId = parseInt(document.getElementById('kanbanBoard').dataset.ultimaCol || '0');
+    const hoje2 = new Date();
+    const isoHoje = `${hoje2.getFullYear()}-${String(hoje2.getMonth()+1).padStart(2,'0')}-${String(hoje2.getDate()).padStart(2,'0')}`;
     const conclusaoHtml = (colId === ultimaColId)
-        ? `<span class="kb-date-item kb-date-conclusao">✓ Concluído: ${criadoFmt}</span>`
+        ? `<label class="kb-date-item kb-date-conclusao" onclick="event.stopPropagation()">✓ Concluído: <input type="date" class="kb-date-conc-input" value="${isoHoje}" data-id="${cartao.id}" onclick="event.stopPropagation()" onchange="salvarDataConclusao(this)"></label>`
         : '';
 
     const html = `
@@ -1569,6 +1599,10 @@ function atualizarCardNaDOM(id, dados) {
     badgeEl.className = `kb-prio-badge prio-badge-${dados.prioridade}`;
     badgeEl.textContent = prioLabel;
 }
+
+window.salvarDataConclusao = async function(input) {
+    await API.editarCartao(input.dataset.id, { data_conclusao: input.value || null });
+};
 
 window.confirmarExcluirCartao = function(id, titulo) {
     if (!confirm(`Excluir o cartão "${titulo}"?`)) return;
@@ -1777,18 +1811,20 @@ function _finalizarMoverCartao(card, novaColId, novaOrdem, ultimaColId, obs) {
         observacoes_conclusao: obs,
     });
 
-    /* Atualiza label de data de conclusão */
+    /* Atualiza campo de data de conclusão */
     const datesEl = card.querySelector('.kb-card-dates');
     if (datesEl) {
         const conclusaoExist = datesEl.querySelector('.kb-date-conclusao');
         if (novaColId === ultimaColId) {
             if (!conclusaoExist) {
                 const hoje = new Date();
-                const fmt = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
-                const span = document.createElement('span');
-                span.className = 'kb-date-item kb-date-conclusao';
-                span.textContent = `✓ Concluído: ${fmt}`;
-                datesEl.appendChild(span);
+                const iso = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+                const cardId = card.dataset.id;
+                const label = document.createElement('label');
+                label.className = 'kb-date-item kb-date-conclusao';
+                label.setAttribute('onclick', 'event.stopPropagation()');
+                label.innerHTML = `✓ Concluído: <input type="date" class="kb-date-conc-input" value="${iso}" data-id="${cardId}" onclick="event.stopPropagation()" onchange="salvarDataConclusao(this)">`;
+                datesEl.appendChild(label);
             }
         } else {
             conclusaoExist?.remove();

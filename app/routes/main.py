@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from models import (
     Apresentacao, Caderno, CartaoKanban, CelulaJupyter, ColunaKanban,
     Codigo, ComentarioSlide, Diagrama, HistoricoEtapas, IconeCustomizado,
-    Imagem, Nota, PDF, Planilha, TarefaFacil, Topico, db,
+    Imagem, Nota, PDF, Planilha, ProjetoRoadmap, Roadmap, TarefaFacil, Topico, db,
 )
 
 bp_main = Blueprint('main', __name__)
@@ -1158,22 +1158,6 @@ def resumo():
     else:
         cartoes_concluidos = 0
 
-    def _conta_prio(p):
-        return (
-            CartaoKanban.query
-            .join(ColunaKanban)
-            .filter(ColunaKanban.id_usuario == current_user.id,
-                    CartaoKanban.prioridade == p)
-            .count()
-        )
-
-    prio = {
-        'alta':  _conta_prio('alta'),
-        'media': _conta_prio('media'),
-        'baixa': _conta_prio('baixa'),
-    }
-    prio_total = sum(prio.values()) or 1
-
     # ── Tarefas no período ────────────────────────────────────────────────
     tarefas_periodo = (
         TarefaFacil.query
@@ -1249,13 +1233,44 @@ def resumo():
     ]
     total_docs = sum(contagem.values())
 
+    # ── Roadmap do ano atual ──────────────────────────────────────────────
+    ano_ini = date(hoje.year, 1, 1)
+    ano_fim = date(hoje.year, 12, 31)
+    projetos_ano = (
+        db.session.query(ProjetoRoadmap)
+        .join(Roadmap, ProjetoRoadmap.id_roadmap == Roadmap.id)
+        .filter(
+            Roadmap.id_usuario == current_user.id,
+            ProjetoRoadmap.data_inicio <= ano_fim,
+            ProjetoRoadmap.data_fim >= ano_ini,
+        )
+        .all()
+    )
+    rm_andamento  = sum(1 for p in projetos_ano if p.status == 'ativo')
+    rm_encerrados = sum(1 for p in projetos_ano if p.status == 'concluido')
+    rm_pausados   = sum(1 for p in projetos_ano if p.status == 'pausado')
+    rm_total      = len(projetos_ano)
+
+    # Roadmaps do usuário com contagens do ano
+    roadmaps_usuario = Roadmap.query.filter_by(id_usuario=current_user.id).all()
+    rm_por_roadmap = []
+    for r in roadmaps_usuario:
+        ps = [p for p in projetos_ano if p.id_roadmap == r.id]
+        if ps:
+            rm_por_roadmap.append({
+                'nome': r.nome,
+                'id': r.id,
+                'andamento': sum(1 for p in ps if p.status == 'ativo'),
+                'encerrados': sum(1 for p in ps if p.status == 'concluido'),
+                'pausados': sum(1 for p in ps if p.status == 'pausado'),
+                'total': len(ps),
+            })
+
     return render_template(
         'content/_resumo.html',
         kanban_cols=kanban_cols,
         total_cartoes=total_cartoes,
         cartoes_concluidos=cartoes_concluidos,
-        prio=prio,
-        prio_total=prio_total,
         tarefas_periodo=tarefas_periodo,
         concluidas_periodo=concluidas_periodo,
         atrasadas=atrasadas,
@@ -1265,4 +1280,10 @@ def resumo():
         hoje=hoje,
         de=de,
         ate=ate,
+        rm_andamento=rm_andamento,
+        rm_encerrados=rm_encerrados,
+        rm_pausados=rm_pausados,
+        rm_total=rm_total,
+        rm_por_roadmap=rm_por_roadmap,
+        ano=hoje.year,
     )

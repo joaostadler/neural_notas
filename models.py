@@ -157,6 +157,7 @@ class CartaoKanban(db.Model):
     visivel_sidebar = db.Column(db.Boolean, default=True)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     observacoes_conclusao = db.Column(db.Text, default='')
+    data_conclusao = db.Column(db.Date, nullable=True)
 
     # Relacionamentos
     historico_etapas = db.relationship('HistoricoEtapas', backref='cartao', lazy=True, cascade='all, delete-orphan')
@@ -407,3 +408,91 @@ class AcessoKanban(db.Model):
 
     def __repr__(self):
         return f'<AcessoKanban dono={self.id_dono} convidado={self.id_convidado} papel={self.papel}>'
+
+
+class Roadmap(db.Model):
+    """Roadmap com linhas (equipes) e colunas (períodos) configuráveis."""
+    __tablename__ = 'roadmaps'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    nome = db.Column(db.String(255), nullable=False)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    linhas = db.relationship('LinhaRoadmap', backref='roadmap', lazy=True,
+                             cascade='all, delete-orphan', order_by='LinhaRoadmap.ordem')
+    colunas = db.relationship('ColunaRoadmap', backref='roadmap', lazy=True,
+                              cascade='all, delete-orphan', order_by='ColunaRoadmap.ordem')
+    projetos = db.relationship('ProjetoRoadmap', backref='roadmap', lazy=True,
+                               cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Roadmap {self.nome}>'
+
+
+class LinhaRoadmap(db.Model):
+    """Linha (equipe/área) de um roadmap."""
+    __tablename__ = 'linhas_roadmap'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_roadmap = db.Column(db.Integer, db.ForeignKey('roadmaps.id', ondelete='CASCADE'), nullable=False)
+    nome = db.Column(db.String(255), nullable=False)
+    cor = db.Column(db.String(7), default='#1e293b')
+    ordem = db.Column(db.Integer, default=0)
+
+    projetos = db.relationship('ProjetoRoadmap', backref='linha', lazy=True, cascade='all, delete-orphan')
+    subgrupos = db.relationship('SubgrupoRoadmap', backref='linha', lazy=True,
+                                cascade='all, delete-orphan', order_by='SubgrupoRoadmap.ordem')
+
+    def __repr__(self):
+        return f'<LinhaRoadmap {self.nome}>'
+
+
+class SubgrupoRoadmap(db.Model):
+    """Subgrupo dentro de uma linha do roadmap."""
+    __tablename__ = 'subgrupos_roadmap'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_linha = db.Column(db.Integer, db.ForeignKey('linhas_roadmap.id', ondelete='CASCADE'), nullable=False)
+    nome = db.Column(db.String(255), nullable=False)
+    ordem = db.Column(db.Integer, default=0)
+
+    projetos = db.relationship('ProjetoRoadmap', backref='subgrupo', lazy=True)
+
+    def __repr__(self):
+        return f'<SubgrupoRoadmap {self.nome}>'
+
+
+class ColunaRoadmap(db.Model):
+    """Coluna (período de tempo) de um roadmap."""
+    __tablename__ = 'colunas_roadmap'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_roadmap = db.Column(db.Integer, db.ForeignKey('roadmaps.id', ondelete='CASCADE'), nullable=False)
+    nome = db.Column(db.String(100), nullable=False)
+    data_inicio = db.Column(db.Date, nullable=False)
+    data_fim = db.Column(db.Date, nullable=False)
+    ordem = db.Column(db.Integer, default=0)
+
+    def __repr__(self):
+        return f'<ColunaRoadmap {self.nome}>'
+
+
+class ProjetoRoadmap(db.Model):
+    """Projeto/iniciativa posicionado no roadmap."""
+    __tablename__ = 'projetos_roadmap'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_roadmap = db.Column(db.Integer, db.ForeignKey('roadmaps.id', ondelete='CASCADE'), nullable=False)
+    id_linha = db.Column(db.Integer, db.ForeignKey('linhas_roadmap.id', ondelete='CASCADE'), nullable=False)
+    id_subgrupo = db.Column(db.Integer, db.ForeignKey('subgrupos_roadmap.id', ondelete='SET NULL'), nullable=True)
+    nome = db.Column(db.String(255), nullable=False)
+    data_inicio = db.Column(db.Date, nullable=False)
+    data_fim = db.Column(db.Date, nullable=False)
+    cor = db.Column(db.String(7), default='#16a34a')
+    status = db.Column(db.String(50), default='ativo')  # ativo, concluido, pausado
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<ProjetoRoadmap {self.nome}>'

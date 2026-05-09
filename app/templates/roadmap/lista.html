@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Roadmap — NeuralNotes{% endblock %}
+
+{% block extra_css %}
+<style>
+.rl-page { padding: 32px 0; }
+.rl-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.rl-title { font-size: 22px; font-weight: 700; }
+.rl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.rl-card {
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--texto);
+    display: block;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.rl-card:hover { border-color: var(--destaque); box-shadow: var(--shadow-md); }
+.rl-card-nome { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.rl-card-meta { font-size: 12px; color: var(--apagado); }
+.rl-card-new {
+    border: 2px dashed var(--borda);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--apagado);
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 80px;
+    cursor: pointer;
+    border-radius: 12px;
+    background: none;
+    width: 100%;
+    font-family: inherit;
+    transition: border-color 0.15s, color 0.15s;
+}
+.rl-card-new:hover { border-color: var(--destaque); color: var(--destaque); }
+.rl-empty { text-align: center; padding: 64px 0; color: var(--apagado); }
+.rl-empty p { margin-bottom: 16px; font-size: 15px; }
+
+/* Modal */
+.rm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.rm-modal {
+    background: var(--painel); border-radius: 12px; padding: 24px;
+    width: 100%; max-width: 400px; box-shadow: var(--shadow-lg);
+}
+.rm-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.rm-modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rl-page">
+    <div class="rl-header">
+        <h1 class="rl-title">Roadmaps</h1>
+    </div>
+
+    {% if roadmaps %}
+    <div class="rl-grid">
+        {% for r in roadmaps %}
+        <a href="{{ url_for('roadmap.ver', roadmap_id=r.id) }}" class="rl-card">
+            <div class="rl-card-nome">{{ r.nome }}</div>
+            <div class="rl-card-meta">
+                {{ r.linhas|length }} linha{{ 'S' if r.linhas|length != 1 }} ·
+                {{ r.colunas|length }} período{{ 'S' if r.colunas|length != 1 }} ·
+                {{ r.projetos|length }} projeto{{ 'S' if r.projetos|length != 1 }}
+            </div>
+        </a>
+        {% endfor %}
+        <button class="rl-card-new" id="btnNovoRoadmap">+ Novo roadmap</button>
+    </div>
+    {% else %}
+    <div class="rl-empty">
+        <p>Nenhum roadmap criado ainda.</p>
+        <button class="btn btn-primary" id="btnNovoRoadmap">+ Criar primeiro roadmap</button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal criar roadmap -->
+<div class="rm-overlay" id="modalCriar" hidden>
+    <div class="rm-modal">
+        <h3>Novo Roadmap</h3>
+        <div class="form-group">
+            <label>Nome</label>
+            <input type="text" id="inputNomeRoadmap" placeholder="Ex.: Roadmap 2026" autocomplete="off">
+        </div>
+        <div class="rm-modal-footer">
+            <button class="btn btn-secondary btn-sm" id="btnCancelarCriar">Cancelar</button>
+            <button class="btn btn-primary btn-sm" id="btnConfirmarCriar">Criar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const modal = document.getElementById('modalCriar');
+const input = document.getElementById('inputNomeRoadmap');
+
+document.querySelectorAll('#btnNovoRoadmap').forEach(b => b.addEventListener('click', () => {
+    input.value = '';
+    modal.hidden = false;
+    setTimeout(() => input.focus(), 50);
+}));
+
+document.getElementById('btnCancelarCriar').addEventListener('click', () => { modal.hidden = true; });
+
+modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+
+input.addEventListener('keydown', e => { if (e.key === 'Enter') confirmar(); });
+
+document.getElementById('btnConfirmarCriar').addEventListener('click', confirmar);
+
+async function confirmar() {
+    const nome = input.value.trim();
+    if (!nome) { input.focus(); return; }
+    const res = await fetch('/roadmap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+        window.location.href = `/roadmap/${data.id}`;
+    } else {
+        alert(data.erro || 'Erro ao criar roadmap.');
+    }
+}
+</script>
+{% endblock %}

@@ -52,6 +52,8 @@ def criar_app(config=None):
             'ALTER TABLE pdfs ADD COLUMN conteudo_capa BLOB',
             "ALTER TABLE compartilhamentos_kanban ADD COLUMN colunas_visiveis TEXT DEFAULT ''",
             "ALTER TABLE acessos_kanban ADD COLUMN papel VARCHAR(20) DEFAULT 'usuario'",
+            'ALTER TABLE projetos_roadmap ADD COLUMN id_subgrupo INTEGER REFERENCES subgrupos_roadmap(id)',
+            'ALTER TABLE cartoes_kanban ADD COLUMN data_conclusao DATE',
         ]:
             try:
                 db.session.execute(db.text(stmt))
@@ -65,11 +67,13 @@ def criar_app(config=None):
     from app.routes.kanban import bp_kanban
     from app.routes.tarefas import bp_tarefas
     from app.routes.usuario import bp_usuario
+    from app.routes.roadmap import bp_roadmap
 
     app.register_blueprint(bp_auth)
     app.register_blueprint(bp_main)
     app.register_blueprint(bp_kanban)
     app.register_blueprint(bp_tarefas)
     app.register_blueprint(bp_usuario)
+    app.register_blueprint(bp_roadmap)
 
     return app

@@ -1,0 +1,1234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ roadmap.nome }} — Roadmap{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout geral ─────────────────────────────────────── */
+.rm-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 56px);
+    margin: -20px;
+    overflow: hidden;
+}
+
+.rm-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--painel);
+    border-bottom: 1px solid var(--borda);
+    flex-shrink: 0;
+    gap: 12px;
+    position: relative;
+    z-index: 50;
+}
+
+.rm-topbar-left { display: flex; align-items: center; gap: 10px; }
+
+.rm-back {
+    color: var(--apagado);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+.rm-back:hover { background: var(--cartao); color: var(--texto); }
+
+.rm-nome {
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.rm-nome:hover { background: var(--cartao); }
+
+.rm-actions { display: flex; gap: 8px; }
+
+/* ── Grid wrapper ─────────────────────────────────────── */
+.rm-grid-wrap {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg);
+}
+
+.rm-grid {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    min-width: 700px;
+}
+
+/* ── Cabeçalho de períodos ────────────────────────────── */
+.rm-corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 30;
+    height: 48px;
+    background: #0f172a;
+    border-right: 1px solid #334155;
+    border-bottom: 2px solid var(--borda);
+}
+
+.rm-period-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: 48px;
+    background: var(--painel);
+    border-bottom: 2px solid var(--borda);
+    position: sticky;
+    top: 0;
+}
+
+.rm-period-inner {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+}
+
+.rm-period-cell {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--apagado);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-right: 1px solid var(--borda);
+    cursor: pointer;
+    transition: background 0.12s;
+    user-select: none;
+}
+.rm-period-cell:hover { background: var(--cartao); }
+
+/* Linha indicadora de hoje */
+.rm-today-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    z-index: 5;
+    pointer-events: none;
+}
+.rm-today-label {
+    position: absolute;
+    top: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #ef4444;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+/* ── Linhas do roadmap ────────────────────────────────── */
+.rm-row-label-cell {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: #1e293b;
+    border-right: 1px solid #334155;
+    border-bottom: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.rm-row-label-cell:hover { background: #2d3f55; }
+
+.rm-row-label {
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.rm-row-label-cell[data-cor] { background: attr(data-cor); }
+
+.rm-row-timeline {
+    position: relative;
+    border-bottom: 1px solid var(--borda);
+    background: white;
+    padding: 6px 0;
+    min-height: 0;
+}
+
+/* Alternating column shading */
+.rm-col-shade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+.rm-col-shade.even { background: rgba(0,0,0,0.018); }
+.rm-col-sep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--borda);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ── Faixas de projeto ────────────────────────────────── */
+.rm-track {
+    position: relative;
+    height: 26px;
+    margin: 3px 0;
+    z-index: 2;
+}
+
+.rm-bar {
+    position: absolute;
+    top: 0;
+    height: 26px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: filter 0.15s, box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    min-width: 4px;
+}
+.rm-bar:hover { filter: brightness(1.12); box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+.rm-bar.status-concluido { opacity: 0.65; }
+.rm-bar.status-pausado { opacity: 0.5; }
+
+/* ── Add row button ───────────────────────────────────── */
+.rm-add-row-cell {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: #0f172a;
+    border-right: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+}
+.rm-add-row-timeline {
+    background: #f8fafc;
+    border-bottom: none;
+    min-height: 44px;
+}
+
+.rm-btn-add-row {
+    background: none;
+    border: 1px dashed #334155;
+    color: #94a3b8;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 5px 10px;
+    width: 100%;
+    text-align: center;
+    transition: border-color 0.12s, color 0.12s;
+    font-family: inherit;
+}
+.rm-btn-add-row:hover { border-color: #94a3b8; color: white; }
+
+/* ── Estado vazio ─────────────────────────────────────── */
+.rm-empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 64px 24px;
+    color: var(--apagado);
+}
+.rm-empty-state p { margin-bottom: 8px; font-size: 14px; }
+
+/* ── Modais ───────────────────────────────────────────── */
+.rm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+.rm-modal {
+    background: var(--painel);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--shadow-lg);
+}
+.rm-modal-lg { max-width: 520px; }
+.rm-modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+.rm-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+}
+.rm-modal-footer-right { display: flex; gap: 8px; }
+
+.rm-row-grid { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+.rm-color-wrap { display: flex; align-items: center; gap: 6px; }
+.rm-color-wrap label { font-size: 12px; font-weight: 600; color: var(--apagado); text-transform: uppercase; }
+.rm-color-input {
+    width: 40px; height: 34px; border: 1px solid var(--borda);
+    border-radius: 6px; cursor: pointer; padding: 2px; background: none;
+}
+
+.rm-date-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Garante que o atributo hidden funciona mesmo com display:flex no elemento */
+[hidden] { display: none !important; }
+
+.btn-danger { background: var(--rosa); color: white; }
+.btn-danger:hover { background: #dc2626; }
+
+/* ── Switcher de roadmaps ─────────────────────────────── */
+.rm-switch-wrap { position: relative; }
+.rm-switch-btn {
+    background: none;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 5px 10px;
+    font-family: inherit;
+    transition: background 0.12s, color 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.rm-switch-btn:hover { background: #1e293b; color: white; }
+.rm-switch-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    min-width: 200px;
+    z-index: 100;
+    overflow: hidden;
+}
+.rm-switch-item {
+    display: block;
+    padding: 9px 14px;
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--texto);
+    cursor: pointer;
+    transition: background 0.1s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+}
+.rm-switch-item:hover { background: var(--cartao); }
+.rm-switch-item.ativo { font-weight: 700; color: var(--destaque); }
+.rm-switch-divider { height: 1px; background: var(--borda); margin: 4px 0; }
+.rm-switch-new { color: var(--destaque); }
+
+/* ── Grade 3 colunas (subgrupos) ─────────────────────── */
+.rm-grid-3col { grid-template-columns: 170px 130px 1fr; }
+
+/* Label com botão de subgrupo */
+.rm-label-wrap { display: flex; flex-direction: column; gap: 5px; width: 100%; }
+.rm-btn-sub-add {
+    background: none;
+    border: 1px dashed rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.35);
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 6px;
+    align-self: flex-start;
+    font-family: inherit;
+    transition: color 0.12s, border-color 0.12s;
+    letter-spacing: 0.04em;
+}
+.rm-btn-sub-add:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.4); }
+
+/* Célula de subgrupo */
+.rm-subgrupo-cell {
+    position: sticky;
+    left: 170px;
+    z-index: 9;
+    background: #162032;
+    border-right: 1px solid #334155;
+    border-bottom: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.rm-subgrupo-cell:hover { background: #1a2a40; }
+.rm-subgrupo-nome {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rm-subgrupo-btn-add {
+    color: #475569;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 400;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0 2px;
+    flex-shrink: 0;
+    transition: color 0.12s;
+}
+.rm-subgrupo-btn-add:hover { color: #94a3b8; }
+.rm-subgrupo-placeholder { cursor: pointer; }
+.rm-subgrupo-placeholder:hover .rm-subgrupo-nome { color: #64748b; }
+.rm-subgrupo-sem-label { cursor: default; }
+.rm-subgrupo-sem-label:hover { background: #162032; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rm-page">
+
+    <!-- Barra superior -->
+    <div class="rm-topbar">
+        <div class="rm-topbar-left">
+            <!-- Switcher de roadmaps -->
+            <div class="rm-switch-wrap" id="rmSwitchWrap">
+                <button class="rm-switch-btn" id="rmSwitchBtn">⊞ Roadmaps ▾</button>
+                <div class="rm-switch-menu" id="rmSwitchMenu" hidden>
+                    {% for r in todos_roadmaps %}
+                    <a href="{{ url_for('roadmap.ver', roadmap_id=r.id) }}"
+                       class="rm-switch-item {% if r.id == roadmap.id %}ativo{% endif %}">
+                        {{ r.nome }}
+                    </a>
+                    {% endfor %}
+                    <div class="rm-switch-divider"></div>
+                    <button class="rm-switch-item rm-switch-new" id="btnNovoRoadmapSwitch">+ Novo roadmap</button>
+                </div>
+            </div>
+            <span class="rm-nome" id="rmNome" title="Clique para renomear">{{ roadmap.nome }}</span>
+        </div>
+        <div class="rm-actions">
+            <button class="btn btn-secondary btn-sm" id="btnAddColuna">+ Período</button>
+            <button class="btn btn-secondary btn-sm" id="btnAddLinha">+ Linha</button>
+            <button class="btn btn-primary btn-sm" id="btnAddProjeto">+ Projeto</button>
+        </div>
+    </div>
+
+    <!-- Grade -->
+    <div class="rm-grid-wrap">
+        <div class="rm-grid{% if tem_subgrupos %} rm-grid-3col{% endif %}" id="rmGrid">
+
+            {% if not colunas_pos and not linhas_data %}
+            <!-- Estado vazio total -->
+            <div class="rm-empty-state">
+                <p><strong>Roadmap vazio</strong></p>
+                <p>Comece adicionando períodos (colunas) e linhas (equipes/áreas), depois cadastre projetos.</p>
+            </div>
+
+            {% else %}
+
+            <!-- Cabeçalho: canto + períodos -->
+            {% if tem_subgrupos %}
+            <div class="rm-corner" style="grid-column:1/3"></div>
+            {% else %}
+            <div class="rm-corner"></div>
+            {% endif %}
+            <div class="rm-period-header" style="position:sticky;top:0;z-index:20;">
+                <div class="rm-period-inner" id="rmPeriodInner">
+                    {% for col in colunas_pos %}
+                    <div class="rm-period-cell"
+                         style="left:{{ col.left_pct }}%; width:{{ col.width_pct }}%"
+                         data-id="{{ col.id }}"
+                         data-nome="{{ col.nome }}"
+                         data-ini="{{ col.data_inicio }}"
+                         data-fim="{{ col.data_fim }}"
+                         onclick="abrirEditColuna(this)">
+                        {{ col.nome }}
+                    </div>
+                    {% endfor %}
+                    <div class="rm-today-line" id="rmTodayLine" style="display:none">
+                        <span class="rm-today-label">Hoje</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linhas de dados -->
+            {% set ns = namespace(row=2) %}
+            {% for linha in linhas_data %}
+                {% set n_subs = linha.subgrupos|length %}
+                {% set tem_diretos = linha.projetos|length > 0 %}
+                {# Se tem subgrupos: uma linha-grid por subgrupo + (se tiver diretos) uma linha "Sem grupo" #}
+                {# Se não tem subgrupos: uma única linha-grid #}
+                {% if tem_subgrupos %}
+                    {% set n_extra = 1 if tem_diretos else 0 %}
+                    {% set n_rows = [n_subs + n_extra, 1]|max %}
+                {% else %}
+                    {% set n_rows = 1 %}
+                {% endif %}
+
+                <!-- Label da linha (col 1, span n_rows) -->
+                <div class="rm-row-label-cell"
+                     style="background:{{ linha.cor }}; grid-column:1; grid-row:{{ ns.row }} / span {{ n_rows }}"
+                     data-id="{{ linha.id }}"
+                     data-nome="{{ linha.nome }}"
+                     data-cor="{{ linha.cor }}"
+                     onclick="abrirEditLinha(this)">
+                    <div class="rm-label-wrap">
+                        <span class="rm-row-label">{{ linha.nome }}</span>
+                        <button class="rm-btn-sub-add" onclick="event.stopPropagation();abrirAddSubgrupo({{ linha.id }})">+ subgrupo</button>
+                    </div>
+                </div>
+
+                {% if tem_subgrupos %}
+                    {# Subgroups rows #}
+                    {% for sub in linha.subgrupos %}
+                    {% set cur_row = ns.row + loop.index0 %}
+                    <!-- Subgrupo cell (col 2) -->
+                    <div class="rm-subgrupo-cell"
+                         style="grid-column:2; grid-row:{{ cur_row }}"
+                         data-id="{{ sub.id }}"
+                         data-nome="{{ sub.nome }}"
+                         data-linha="{{ linha.id }}"
+                         onclick="abrirEditSubgrupo(this)">
+                        <span class="rm-subgrupo-nome">{{ sub.nome }}</span>
+                        <button class="rm-subgrupo-btn-add" onclick="event.stopPropagation();abrirAddProjetoNaLinha({{ linha.id }},{{ sub.id }})">+</button>
+                    </div>
+                    <!-- Timeline subgrupo (col 3) -->
+                    <div class="rm-row-timeline" style="grid-column:3; grid-row:{{ cur_row }}">
+                        {% for col in colunas_pos %}
+                        <div class="rm-col-shade {% if loop.index is even %}even{% endif %}"
+                             style="left:{{ col.left_pct }}%; width:{{ col.width_pct }}%"></div>
+                        {% if not loop.last %}
+                        <div class="rm-col-sep" style="left:{{ col.left_pct + col.width_pct }}%"></div>
+                        {% endif %}
+                        {% endfor %}
+                        <div class="rm-today-line rm-today-row" style="display:none"></div>
+                        {% for proj in sub.projetos %}
+                        <div class="rm-track">
+                            <div class="rm-bar status-{{ proj.status }}"
+                                 style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
+                                 data-id="{{ proj.id }}"
+                                 data-nome="{{ proj.nome }}"
+                                 data-ini="{{ proj.data_inicio }}"
+                                 data-fim="{{ proj.data_fim }}"
+                                 data-cor="{{ proj.cor }}"
+                                 data-status="{{ proj.status }}"
+                                 data-linha="{{ linha.id }}"
+                                 data-subgrupo="{{ proj.id_subgrupo }}"
+                                 onclick="abrirEditProjeto(this)"
+                                 title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
+                                {{ proj.nome }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+
+                    {# "Sem grupo" row — diretos or placeholder #}
+                    {% set sem_row = ns.row + n_subs %}
+                    {% if tem_diretos %}
+                    <!-- Sem grupo cell (col 2) -->
+                    <div class="rm-subgrupo-cell rm-subgrupo-sem-label"
+                         style="grid-column:2; grid-row:{{ sem_row }}">
+                        <span class="rm-subgrupo-nome" style="color:#475569">sem grupo</span>
+                        <button class="rm-subgrupo-btn-add" onclick="abrirAddProjetoNaLinha({{ linha.id }},null)">+</button>
+                    </div>
+                    <!-- Timeline sem grupo (col 3) -->
+                    <div class="rm-row-timeline" style="grid-column:3; grid-row:{{ sem_row }}">
+                        {% for col in colunas_pos %}
+                        <div class="rm-col-shade {% if loop.index is even %}even{% endif %}"
+                             style="left:{{ col.left_pct }}%; width:{{ col.width_pct }}%"></div>
+                        {% if not loop.last %}
+                        <div class="rm-col-sep" style="left:{{ col.left_pct + col.width_pct }}%"></div>
+                        {% endif %}
+                        {% endfor %}
+                        <div class="rm-today-line rm-today-row" style="display:none"></div>
+                        {% for proj in linha.projetos %}
+                        <div class="rm-track">
+                            <div class="rm-bar status-{{ proj.status }}"
+                                 style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
+                                 data-id="{{ proj.id }}"
+                                 data-nome="{{ proj.nome }}"
+                                 data-ini="{{ proj.data_inicio }}"
+                                 data-fim="{{ proj.data_fim }}"
+                                 data-cor="{{ proj.cor }}"
+                                 data-status="{{ proj.status }}"
+                                 data-linha="{{ linha.id }}"
+                                 data-subgrupo=""
+                                 onclick="abrirEditProjeto(this)"
+                                 title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
+                                {{ proj.nome }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% elif n_subs == 0 %}
+                    <!-- Linha sem subgrupos em modo 3col: placeholder col 2 + timeline col 3 -->
+                    <div class="rm-subgrupo-cell rm-subgrupo-placeholder"
+                         style="grid-column:2; grid-row:{{ ns.row }}"
+                         onclick="abrirAddSubgrupo({{ linha.id }})">
+                        <span class="rm-subgrupo-nome">+ subgrupo</span>
+                    </div>
+                    <div class="rm-row-timeline" style="grid-column:3; grid-row:{{ ns.row }}">
+                        {% for col in colunas_pos %}
+                        <div class="rm-col-shade {% if loop.index is even %}even{% endif %}"
+                             style="left:{{ col.left_pct }}%; width:{{ col.width_pct }}%"></div>
+                        {% if not loop.last %}
+                        <div class="rm-col-sep" style="left:{{ col.left_pct + col.width_pct }}%"></div>
+                        {% endif %}
+                        {% endfor %}
+                        <div class="rm-today-line rm-today-row" style="display:none"></div>
+                        {% for proj in linha.projetos %}
+                        <div class="rm-track">
+                            <div class="rm-bar status-{{ proj.status }}"
+                                 style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
+                                 data-id="{{ proj.id }}"
+                                 data-nome="{{ proj.nome }}"
+                                 data-ini="{{ proj.data_inicio }}"
+                                 data-fim="{{ proj.data_fim }}"
+                                 data-cor="{{ proj.cor }}"
+                                 data-status="{{ proj.status }}"
+                                 data-linha="{{ linha.id }}"
+                                 data-subgrupo=""
+                                 onclick="abrirEditProjeto(this)"
+                                 title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
+                                {{ proj.nome }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        <div class="rm-track" style="height:22px;margin-top:4px;">
+                            <button class="rm-bar"
+                                    style="left:0;width:auto;background:transparent;border:1px dashed #cbd5e1;color:#94a3b8;font-size:10px;cursor:pointer;min-width:80px;"
+                                    onclick="abrirAddProjetoNaLinha({{ linha.id }},null)">
+                                + projeto
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                {% else %}
+                <!-- Modo 2 colunas: timeline direta -->
+                <div class="rm-row-timeline">
+                    {% for col in colunas_pos %}
+                    <div class="rm-col-shade {% if loop.index is even %}even{% endif %}"
+                         style="left:{{ col.left_pct }}%; width:{{ col.width_pct }}%"></div>
+                    {% if not loop.last %}
+                    <div class="rm-col-sep" style="left:{{ col.left_pct + col.width_pct }}%"></div>
+                    {% endif %}
+                    {% endfor %}
+                    <div class="rm-today-line rm-today-row" style="display:none"></div>
+                    {% for proj in linha.projetos %}
+                    <div class="rm-track">
+                        <div class="rm-bar status-{{ proj.status }}"
+                             style="left:{{ proj.left_pct }}%; width:{{ proj.width_pct }}%; background:{{ proj.cor }}"
+                             data-id="{{ proj.id }}"
+                             data-nome="{{ proj.nome }}"
+                             data-ini="{{ proj.data_inicio }}"
+                             data-fim="{{ proj.data_fim }}"
+                             data-cor="{{ proj.cor }}"
+                             data-status="{{ proj.status }}"
+                             data-linha="{{ linha.id }}"
+                             data-subgrupo=""
+                             onclick="abrirEditProjeto(this)"
+                             title="{{ proj.nome }} ({{ proj.data_inicio }} → {{ proj.data_fim }})">
+                            {{ proj.nome }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="rm-track" style="height:22px;margin-top:4px;">
+                        <button class="rm-bar"
+                                style="left:0;width:auto;background:transparent;border:1px dashed #cbd5e1;color:#94a3b8;font-size:10px;cursor:pointer;min-width:80px;"
+                                onclick="abrirAddProjetoNaLinha({{ linha.id }},null)">
+                            + projeto
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% set ns.row = ns.row + n_rows %}
+            {% endfor %}
+
+            <!-- Botão adicionar linha -->
+            {% if tem_subgrupos %}
+            <div class="rm-add-row-cell" style="grid-column:1">
+                <button class="rm-btn-add-row" onclick="document.getElementById('btnAddLinha').click()">+ Linha</button>
+            </div>
+            <div class="rm-add-row-timeline rm-row-timeline" style="grid-column:2/4"></div>
+            {% else %}
+            <div class="rm-add-row-cell">
+                <button class="rm-btn-add-row" onclick="document.getElementById('btnAddLinha').click()">+ Linha</button>
+            </div>
+            <div class="rm-add-row-timeline rm-row-timeline"></div>
+            {% endif %}
+
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ══ MODAIS ══════════════════════════════════════════════════════════════ -->
+
+<!-- Renomear roadmap -->
+<div class="rm-overlay" id="modalNome" hidden>
+    <div class="rm-modal">
+        <h3>Renomear Roadmap</h3>
+        <div class="form-group">
+            <label>Nome</label>
+            <input type="text" id="inputNomeRm" autocomplete="off">
+        </div>
+        <div class="rm-modal-footer">
+            <button class="btn btn-danger btn-sm" id="btnDeleteRm">Excluir roadmap</button>
+            <div class="rm-modal-footer-right">
+                <button class="btn btn-secondary btn-sm" onclick="fecharModal('modalNome')">Cancelar</button>
+                <button class="btn btn-primary btn-sm" onclick="salvarNomeRm()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Nova linha -->
+<div class="rm-overlay" id="modalLinha" hidden>
+    <div class="rm-modal">
+        <h3 id="modalLinhaTitle">Nova Linha</h3>
+        <input type="hidden" id="linhaIdEdit">
+        <div class="form-group">
+            <label>Nome da equipe / área</label>
+            <input type="text" id="inputLinhaNome" placeholder="Ex.: Vendas" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <div class="rm-color-wrap">
+                <label>Cor</label>
+                <input type="color" class="rm-color-input" id="inputLinhaCor" value="#1e293b">
+            </div>
+        </div>
+        <div class="rm-modal-footer">
+            <button class="btn btn-danger btn-sm" id="btnDeleteLinha" style="display:none" onclick="deletarLinha()">Excluir</button>
+            <div class="rm-modal-footer-right">
+                <button class="btn btn-secondary btn-sm" onclick="fecharModal('modalLinha')">Cancelar</button>
+                <button class="btn btn-primary btn-sm" onclick="salvarLinha()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Novo período (coluna) -->
+<div class="rm-overlay" id="modalColuna" hidden>
+    <div class="rm-modal">
+        <h3 id="modalColunaTitle">Novo Período</h3>
+        <input type="hidden" id="colunaIdEdit">
+        <div class="form-group">
+            <label>Rótulo do período</label>
+            <input type="text" id="inputColunaNome" placeholder="Ex.: Q1-26" autocomplete="off">
+        </div>
+        <div class="rm-date-grid">
+            <div class="form-group">
+                <label>Início</label>
+                <input type="date" id="inputColunaIni">
+            </div>
+            <div class="form-group">
+                <label>Fim</label>
+                <input type="date" id="inputColunaFim">
+            </div>
+        </div>
+        <div class="rm-modal-footer">
+            <button class="btn btn-danger btn-sm" id="btnDeleteColuna" style="display:none" onclick="deletarColuna()">Excluir</button>
+            <div class="rm-modal-footer-right">
+                <button class="btn btn-secondary btn-sm" onclick="fecharModal('modalColuna')">Cancelar</button>
+                <button class="btn btn-primary btn-sm" onclick="salvarColuna()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Novo / editar projeto -->
+<div class="rm-overlay" id="modalProjeto" hidden>
+    <div class="rm-modal rm-modal-lg">
+        <h3 id="modalProjetoTitle">Novo Projeto</h3>
+        <input type="hidden" id="projetoIdEdit">
+        <!-- Aviso sem linhas (controlado via JS) -->
+        <div id="avisoSemLinhas" style="display:none">
+            <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#713f12;">
+                Nenhuma linha cadastrada. Adicione uma <strong>Linha</strong> antes de criar projetos.
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="fecharModal('modalProjeto')">Fechar</button>
+                <button class="btn btn-primary btn-sm" onclick="fecharModal('modalProjeto');document.getElementById('btnAddLinha').click()">+ Adicionar linha</button>
+            </div>
+        </div>
+        <!-- Formulário (controlado via JS) -->
+        <div id="formProjeto">
+            <div class="form-group">
+                <label>Nome do projeto</label>
+                <input type="text" id="inputProjetoNome" placeholder="Ex.: Migração para HubSpot" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Linha (equipe)</label>
+                <select id="inputProjetoLinha" onchange="atualizarSelectSubgrupo(this.value)">
+                    {% for linha in linhas_data %}
+                    <option value="{{ linha.id }}">{{ linha.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" id="wrapProjetoSubgrupo" style="display:none">
+                <label>Subgrupo</label>
+                <select id="inputProjetoSubgrupo">
+                    <option value="">— sem subgrupo —</option>
+                </select>
+            </div>
+            <div class="rm-date-grid">
+                <div class="form-group">
+                    <label>Início</label>
+                    <input type="date" id="inputProjetoIni">
+                </div>
+                <div class="form-group">
+                    <label>Fim</label>
+                    <input type="date" id="inputProjetoFim">
+                </div>
+            </div>
+            <div style="display:flex;gap:16px;align-items:flex-end">
+                <div class="form-group" style="flex:1">
+                    <label>Status</label>
+                    <select id="inputProjetoStatus">
+                        <option value="ativo">Ativo</option>
+                        <option value="concluido">Concluído</option>
+                        <option value="pausado">Pausado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <div class="rm-color-wrap">
+                        <label>Cor</label>
+                        <input type="color" class="rm-color-input" id="inputProjetoCor" value="#16a34a">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="rm-modal-footer">
+            <button class="btn btn-danger btn-sm" id="btnDeleteProjeto" style="display:none" onclick="deletarProjeto()">Excluir</button>
+            <div class="rm-modal-footer-right">
+                <button class="btn btn-secondary btn-sm" onclick="fecharModal('modalProjeto')">Cancelar</button>
+                <button class="btn btn-primary btn-sm" id="btnSalvarProjeto" onclick="salvarProjeto()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Subgrupo -->
+<div class="rm-overlay" id="modalSubgrupo" hidden>
+    <div class="rm-modal">
+        <h3 id="modalSubgrupoTitle">Novo Subgrupo</h3>
+        <input type="hidden" id="subgrupoIdEdit">
+        <input type="hidden" id="subgrupoLinhaId">
+        <div class="form-group">
+            <label>Nome do subgrupo</label>
+            <input type="text" id="inputSubgrupoNome" placeholder="Ex.: Enterprise" autocomplete="off">
+        </div>
+        <div class="rm-modal-footer">
+            <button class="btn btn-danger btn-sm" id="btnDeleteSubgrupo" style="display:none" onclick="deletarSubgrupo()">Excluir</button>
+            <div class="rm-modal-footer-right">
+                <button class="btn btn-secondary btn-sm" onclick="fecharModal('modalSubgrupo')">Cancelar</button>
+                <button class="btn btn-primary btn-sm" onclick="salvarSubgrupo()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const RM_ID = {{ roadmap.id }};
+const BASE = `/roadmap/${RM_ID}`;
+const SUBGRUPOS_MAP = {{ subgrupos_map|tojson }};
+const RM_TOTAL_ROWS = {{ total_rows }};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fecharModal(id) { document.getElementById(id).hidden = true; }
+
+function abrirModal(id) {
+    document.getElementById(id).hidden = false;
+}
+
+function overlayClick(id) {
+    document.getElementById(id).addEventListener('click', e => {
+        if (e.target === document.getElementById(id)) fecharModal(id);
+    });
+}
+['modalNome','modalLinha','modalColuna','modalProjeto','modalSubgrupo'].forEach(overlayClick);
+
+async function api(path, method, body) {
+    const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+}
+
+function reload() { location.reload(); }
+
+// ── Altura das linhas (preenche o viewport) ────────────────────────────────
+
+function ajustarAlturaLinhas() {
+    if (!RM_TOTAL_ROWS) return;
+    const grid = document.getElementById('rmGrid');
+    if (!grid) return;
+    const wrap = grid.parentElement;
+    const HEADER_H = 48;
+    const ADDROW_H = 44;
+    const available = wrap.clientHeight - HEADER_H - ADDROW_H;
+    const rowH = Math.max(64, Math.floor(available / RM_TOTAL_ROWS));
+    grid.style.gridTemplateRows = `${HEADER_H}px repeat(${RM_TOTAL_ROWS}, ${rowH}px) ${ADDROW_H}px`;
+}
+
+window.addEventListener('resize', ajustarAlturaLinhas);
+ajustarAlturaLinhas();
+
+// ── Linha indicadora de hoje ───────────────────────────────────────────────
+
+(function posicionarHoje() {
+    {% if colunas_pos %}
+    const ini = new Date('{{ colunas_pos[0].data_inicio if colunas_pos else "" }}');
+    const fim = new Date('{{ colunas_pos[-1].data_fim if colunas_pos else "" }}');
+    if (!ini || !fim || isNaN(ini)) return;
+
+    const hoje = new Date();
+    const totalMs = fim - ini + 86400000;
+    const offsetMs = hoje - ini;
+    if (offsetMs < 0 || offsetMs > totalMs) return;
+
+    const pct = (offsetMs / totalMs * 100).toFixed(3) + '%';
+    document.getElementById('rmTodayLine').style.cssText = `display:block;left:${pct}`;
+    document.querySelectorAll('.rm-today-row').forEach(el => {
+        el.style.cssText = `display:block;left:${pct}`;
+    });
+    {% endif %}
+})();
+
+// ── Switcher de roadmaps ───────────────────────────────────────────────────
+
+const switchBtn = document.getElementById('rmSwitchBtn');
+const switchMenu = document.getElementById('rmSwitchMenu');
+
+switchBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    switchMenu.hidden = !switchMenu.hidden;
+});
+
+document.addEventListener('click', e => {
+    if (!document.getElementById('rmSwitchWrap').contains(e.target)) {
+        switchMenu.hidden = true;
+    }
+});
+
+document.getElementById('btnNovoRoadmapSwitch').addEventListener('click', () => {
+    switchMenu.hidden = true;
+    const nome = prompt('Nome do novo roadmap:');
+    if (!nome || !nome.trim()) return;
+    api('/roadmap', 'POST', { nome: nome.trim() }).then(({ ok, data }) => {
+        if (ok) window.location.href = `/roadmap/${data.id}`;
+        else alert(data.erro || 'Erro ao criar roadmap.');
+    });
+});
+
+// ── Renomear roadmap ───────────────────────────────────────────────────────
+
+document.getElementById('rmNome').addEventListener('click', () => {
+    document.getElementById('inputNomeRm').value = document.getElementById('rmNome').textContent.trim();
+    abrirModal('modalNome');
+    setTimeout(() => document.getElementById('inputNomeRm').focus(), 50);
+});
+
+async function salvarNomeRm() {
+    const nome = document.getElementById('inputNomeRm').value.trim();
+    if (!nome) return;
+    const { ok } = await api(BASE, 'PUT', { nome });
+    if (ok) {
+        document.getElementById('rmNome').textContent = nome;
+        fecharModal('modalNome');
+    }
+}
+
+document.getElementById('btnDeleteRm').addEventListener('click', async () => {
+    if (!confirm('Excluir este roadmap e todos os dados? Esta ação não pode ser desfeita.')) return;
+    const { ok } = await api(BASE, 'DELETE');
+    if (ok) window.location.href = '/roadmap';
+});
+
+// ── Linha ──────────────────────────────────────────────────────────────────
+
+document.getElementById('btnAddLinha').addEventListener('click', () => {
+    document.getElementById('modalLinhaTitle').textContent = 'Nova Linha';
+    document.getElementById('linhaIdEdit').value = '';
+    document.getElementById('inputLinhaNome').value = '';
+    document.getElementById('inputLinhaCor').value = '#1e293b';
+    document.getElementById('btnDeleteLinha').style.display = 'none';
+    abrirModal('modalLinha');
+    setTimeout(() => document.getElementById('inputLinhaNome').focus(), 50);
+});
+
+function abrirEditLinha(el) {
+    document.getElementById('modalLinhaTitle').textContent = 'Editar Linha';
+    document.getElementById('linhaIdEdit').value = el.dataset.id;
+    document.getElementById('inputLinhaNome').value = el.dataset.nome;
+    document.getElementById('inputLinhaCor').value = el.dataset.cor;
+    document.getElementById('btnDeleteLinha').style.display = '';
+    abrirModal('modalLinha');
+    setTimeout(() => document.getElementById('inputLinhaNome').focus(), 50);
+}
+
+async function salvarLinha() {
+    const id = document.getElementById('linhaIdEdit').value;
+    const nome = document.getElementById('inputLinhaNome').value.trim();
+    const cor = document.getElementById('inputLinhaCor').value;
+    if (!nome) { document.getElementById('inputLinhaNome').focus(); return; }
+
+    const url = id ? `${BASE}/linhas/${id}` : `${BASE}/linhas`;
+    const method = id ? 'PUT' : 'POST';
+    const { ok, data } = await api(url, method, { nome, cor });
+    if (ok) reload();
+    else alert(data.erro || 'Erro ao salvar linha.');
+}
+
+async function deletarLinha() {
+    const id = document.getElementById('linhaIdEdit').value;
+    if (!id || !confirm('Excluir esta linha e todos os projetos dela?')) return;
+    const { ok } = await api(`${BASE}/linhas/${id}`, 'DELETE');
+    if (ok) reload();
+}
+
+// ── Período (coluna) ───────────────────────────────────────────────────────
+
+document.getElementById('btnAddColuna').addEventListener('click', () => {
+    document.getElementById('modalColunaTitle').textContent = 'Novo Período';
+    document.getElementById('colunaIdEdit').value = '';
+    document.getElementById('inputColunaNome').value = '';
+    document.getElementById('inputColunaIni').value = '';
+    document.getElementById('inputColunaFim').value = '';
+    document.getElementById('btnDeleteColuna').style.display = 'none';
+    abrirModal('modalColuna');
+    setTimeout(() => document.getElementById('inputColunaNome').focus(), 50);
+});
+
+function abrirEditColuna(el) {
+    document.getElementById('modalColunaTitle').textContent = 'Editar Período';
+    document.getElementById('colunaIdEdit').value = el.dataset.id;
+    document.getElementById('inputColunaNome').value = el.dataset.nome;
+    document.getElementById('inputColunaIni').value = el.dataset.ini;
+    document.getElementById('inputColunaFim').value = el.dataset.fim;
+    document.getElementById('btnDeleteColuna').style.display = '';
+    abrirModal('modalColuna');
+    setTimeout(() => document.getElementById('inputColunaNome').focus(), 50);
+}
+
+async function salvarColuna() {
+    const id = document.getElementById('colunaIdEdit').value;
+    const nome = document.getElementById('inputColunaNome').value.trim();
+    const data_inicio = document.getElementById('inputColunaIni').value;
+    const data_fim = document.getElementById('inputColunaFim').value;
+    if (!nome || !data_inicio || !data_fim) {
+        alert('Preencha nome, data de início e data de fim.');
+        return;
+    }
+    const url = id ? `${BASE}/colunas/${id}` : `${BASE}/colunas`;
+    const method = id ? 'PUT' : 'POST';
+    const { ok, data } = await api(url, method, { nome, data_inicio, data_fim });
+    if (ok) reload();
+    else alert(data.erro || 'Erro ao salvar período.');
+}
+
+async function deletarColuna() {
+    const id = document.getElementById('colunaIdEdit').value;
+    if (!id || !confirm('Excluir este período?')) return;
+    const { ok } = await api(`${BASE}/colunas/${id}`, 'DELETE');
+    if (ok) reload();
+}
+
+// ── Subgrupo select helper ─────────────────────────────────────────────────
+
+function atualizarSelectSubgrupo(linhaId, subgrupoSelecionado) {
+    const subs = SUBGRUPOS_MAP[String(linhaId)] || [];
+    const wrap = document.getElementById('wrapProjetoSubgrupo');
+    const sel = document.getElementById('inputProjetoSubgrupo');
+    if (subs.length === 0) {
+        wrap.style.display = 'none';
+        sel.value = '';
+        return;
+    }
+    wrap.style.display = '';
+    sel.innerHTML = '<option value="">— sem subgrupo —</option>';
+    subs.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.nome;
+        sel.appendChild(opt);
+    });
+    if (subgrupoSelecionado) sel.value = String(subgrupoSelecionado);
+}
+
+// ── Projeto ────────────────────────────────────────────────────────────────
+
+function _prepararModalProjeto() {
+    const temLinhas = document.getElementById('inputProjetoLinha').options.length > 0;
+    document.getElementById('avisoSemLinhas').style.display = temLinhas ? 'none' : '';
+    document.getElementById('formProjeto').style.display = temLinhas ? '' : 'none';
+    document.getElementById('btnSalvarProjeto').style.display = temLinhas ? '' : 'none';
+    return temLinhas;
+}
+
+document.getElementById('btnAddProjeto').addEventListener('click', () => abrirAddProjetoNaLinha(null, null));
+
+function abrirAddProjetoNaLinha(linhaId, subgrupoId) {
+    document.getElementById('modalProjetoTitle').textContent = 'Novo Projeto';
+    document.getElementById('projetoIdEdit').value = '';
+    document.getElementById('inputProjetoNome').value = '';
+    document.getElementById('inputProjetoIni').value = '';
+    document.getElementById('inputProjetoFim').value = '';
+    document.getElementById('inputProjetoCor').value = '#16a34a';
+    document.getElementById('inputProjetoStatus').value = 'ativo';
+    document.getElementById('btnDeleteProjeto').style.display = 'none';
+    const linhaSelect = document.getElementById('inputProjetoLinha');
+    if (linhaId) linhaSelect.value = String(linhaId);
+    const efetiva = linhaId || (linhaSelect.options[0] && linhaSelect.options[0].value);
+    atualizarSelectSubgrupo(efetiva, subgrupoId);
+    const temLinhas = _prepararModalProjeto();
+    abrirModal('modalProjeto');
+    if (temLinhas) setTimeout(() => document.getElementById('inputProjetoNome').focus(), 50);
+}
+
+function abrirEditProjeto(el) {
+    document.getElementById('modalProjetoTitle').textContent = 'Editar Projeto';
+    document.getElementById('projetoIdEdit').value = el.dataset.id;
+    document.getElementById('inputProjetoNome').value = el.dataset.nome;
+    document.getElementById('inputProjetoLinha').value = el.dataset.linha;
+    document.getElementById('inputProjetoIni').value = el.dataset.ini;
+    document.getElementById('inputProjetoFim').value = el.dataset.fim;
+    document.getElementById('inputProjetoCor').value = el.dataset.cor;
+    document.getElementById('inputProjetoStatus').value = el.dataset.status;
+    document.getElementById('btnDeleteProjeto').style.display = '';
+    atualizarSelectSubgrupo(el.dataset.linha, el.dataset.subgrupo || null);
+    _prepararModalProjeto();
+    abrirModal('modalProjeto');
+    setTimeout(() => document.getElementById('inputProjetoNome').focus(), 50);
+}
+
+async function salvarProjeto() {
+    const id = document.getElementById('projetoIdEdit').value;
+    const nome = document.getElementById('inputProjetoNome').value.trim();
+    const id_linha = parseInt(document.getElementById('inputProjetoLinha').value);
+    const data_inicio = document.getElementById('inputProjetoIni').value;
+    const data_fim = document.getElementById('inputProjetoFim').value;
+    const cor = document.getElementById('inputProjetoCor').value;
+    const status = document.getElementById('inputProjetoStatus').value;
+    const subVal = document.getElementById('inputProjetoSubgrupo').value;
+    const id_subgrupo = subVal ? parseInt(subVal) : null;
+
+    if (!nome || !data_inicio || !data_fim) {
+        alert('Preencha nome, data de início e data de fim.');
+        return;
+    }
+    if (!id_linha) {
+        alert('Selecione uma linha.');
+        return;
+    }
+
+    const url = id ? `${BASE}/projetos/${id}` : `${BASE}/projetos`;
+    const method = id ? 'PUT' : 'POST';
+    const { ok, data } = await api(url, method, { nome, id_linha, id_subgrupo, data_inicio, data_fim, cor, status });
+    if (ok) reload();
+    else alert(data.erro || 'Erro ao salvar projeto.');
+}
+
+async function deletarProjeto() {
+    const id = document.getElementById('projetoIdEdit').value;
+    if (!id || !confirm('Excluir este projeto?')) return;
+    const { ok } = await api(`${BASE}/projetos/${id}`, 'DELETE');
+    if (ok) reload();
+}
+
+// ── Subgrupo ───────────────────────────────────────────────────────────────
+
+function abrirAddSubgrupo(linhaId) {
+    document.getElementById('modalSubgrupoTitle').textContent = 'Novo Subgrupo';
+    document.getElementById('subgrupoIdEdit').value = '';
+    document.getElementById('subgrupoLinhaId').value = linhaId;
+    document.getElementById('inputSubgrupoNome').value = '';
+    document.getElementById('btnDeleteSubgrupo').style.display = 'none';
+    abrirModal('modalSubgrupo');
+    setTimeout(() => document.getElementById('inputSubgrupoNome').focus(), 50);
+}
+
+function abrirEditSubgrupo(el) {
+    document.getElementById('modalSubgrupoTitle').textContent = 'Editar Subgrupo';
+    document.getElementById('subgrupoIdEdit').value = el.dataset.id;
+    document.getElementById('subgrupoLinhaId').value = el.dataset.linha;
+    document.getElementById('inputSubgrupoNome').value = el.dataset.nome;
+    document.getElementById('btnDeleteSubgrupo').style.display = '';
+    abrirModal('modalSubgrupo');
+    setTimeout(() => document.getElementById('inputSubgrupoNome').focus(), 50);
+}
+
+async function salvarSubgrupo() {
+    const id = document.getElementById('subgrupoIdEdit').value;
+    const linhaId = document.getElementById('subgrupoLinhaId').value;
+    const nome = document.getElementById('inputSubgrupoNome').value.trim();
+    if (!nome) { document.getElementById('inputSubgrupoNome').focus(); return; }
+    const url = id ? `${BASE}/linhas/${linhaId}/subgrupos/${id}` : `${BASE}/linhas/${linhaId}/subgrupos`;
+    const method = id ? 'PUT' : 'POST';
+    const { ok, data } = await api(url, method, { nome });
+    if (ok) reload();
+    else alert(data.erro || 'Erro ao salvar subgrupo.');
+}
+
+async function deletarSubgrupo() {
+    const id = document.getElementById('subgrupoIdEdit').value;
+    const linhaId = document.getElementById('subgrupoLinhaId').value;
+    if (!id || !confirm('Excluir este subgrupo? Os projetos ligados a ele perderão o subgrupo.')) return;
+    const { ok } = await api(`${BASE}/linhas/${linhaId}/subgrupos/${id}`, 'DELETE');
+    if (ok) reload();
+}
+
+// ── Atalhos de teclado ─────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        ['modalNome','modalLinha','modalColuna','modalProjeto','modalSubgrupo'].forEach(fecharModal);
+    }
+});
+</script>
+{% endblock %}
