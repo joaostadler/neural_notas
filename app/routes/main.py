@@ -12,6 +12,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import desc
 from werkzeug.utils import secure_filename
 
+from app.utils import get_usuario_ativo, verificar_acesso_modulo
 from models import (
     Apresentacao, Caderno, CartaoKanban, CelulaJupyter, ColunaKanban,
     Codigo, ComentarioSlide, Diagrama, HistoricoEtapas, IconeCustomizado,
@@ -19,6 +20,11 @@ from models import (
 )
 
 bp_main = Blueprint('main', __name__)
+
+
+@bp_main.before_request
+def _verificar_biblioteca():
+    return verificar_acesso_modulo('biblioteca')
 
 
 _BRT = timezone(timedelta(hours=-3))
@@ -51,7 +57,7 @@ TIPOS_DOCUMENTO = {
 def _topico_do_usuario(topico_id):
     if not topico_id:
         return None
-    return Topico.query.filter_by(id=topico_id, id_usuario=current_user.id).first()
+    return Topico.query.filter_by(id=topico_id, id_usuario=get_usuario_ativo().id).first()
 
 
 def _eh_container(topico):
@@ -61,7 +67,7 @@ def _eh_container(topico):
 def _proxima_ordem(id_pai):
     ultima_ordem = (
         db.session.query(db.func.max(Topico.ordem))
-        .filter_by(id_usuario=current_user.id, id_pai=id_pai)
+        .filter_by(id_usuario=get_usuario_ativo().id, id_pai=id_pai)
         .scalar()
     )
     return (ultima_ordem or 0) + 1
@@ -147,7 +153,7 @@ def index():
 def dashboard():
     """Dashboard principal do usuario."""
     topicos = (
-        Topico.query.filter_by(id_usuario=current_user.id, id_pai=None)
+        Topico.query.filter_by(id_usuario=get_usuario_ativo().id, id_pai=None)
         .order_by(Topico.ordem, Topico.nome)
         .all()
     )
@@ -155,7 +161,7 @@ def dashboard():
     tarefas_do_dia = (
         TarefaFacil.query
         .filter(
-            TarefaFacil.id_usuario == current_user.id,
+            TarefaFacil.id_usuario == get_usuario_ativo().id,
             TarefaFacil.data_tarefa == date.today(),
         )
         .order_by(TarefaFacil.concluida.asc(), TarefaFacil.criado_em.asc())
@@ -165,7 +171,7 @@ def dashboard():
 
     icones_customizados = {
         ic.tipo: f'/static/{ic.caminho}'
-        for ic in IconeCustomizado.query.filter_by(id_usuario=current_user.id).all()
+        for ic in IconeCustomizado.query.filter_by(id_usuario=get_usuario_ativo().id).all()
     }
 
     return render_template(
@@ -199,7 +205,7 @@ def criar_topico():
         return redirect(url_for('main.dashboard'))
 
     topico = Topico(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         id_pai=id_pai,
         nome=nome,
         tipo=tipo,
@@ -239,7 +245,7 @@ def importar_pdf():
     conteudo_bytes = arquivo.read()
     titulo = os.path.splitext(nome_seguro)[0] or 'PDF importado'
     topico = Topico(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         id_pai=id_pai,
         nome=titulo,
         tipo='pdf',
@@ -282,7 +288,7 @@ def importar_imagem():
 
     titulo = os.path.splitext(nome_seguro)[0] or 'Imagem importada'
 
-    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'imgs', str(current_user.id))
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'imgs', str(get_usuario_ativo().id))
     os.makedirs(pasta, exist_ok=True)
 
     fmt_salvar = 'PNG' if ext == 'png' else 'JPEG'
@@ -300,7 +306,7 @@ def importar_imagem():
     caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
 
     topico = Topico(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         id_pai=id_pai,
         nome=titulo,
         tipo='imagem',
@@ -411,7 +417,7 @@ def importar_apresentacao():
         extracao_ok = False
 
     topico = Topico(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         id_pai=id_pai,
         nome=titulo,
         tipo='apresentacao',
@@ -677,7 +683,7 @@ def importar_planilha():
         return redirect(url_for('main.dashboard'))
 
     topico = Topico(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         id_pai=id_pai,
         nome=titulo,
         tipo='planilha',
@@ -742,14 +748,14 @@ def ver_topico(id):
     elif topico.tipo == 'biblioteca':
         conteudo = (
             Topico.query
-            .filter_by(id_usuario=current_user.id, id_pai=topico.id, tipo='pdf')
+            .filter_by(id_usuario=get_usuario_ativo().id, id_pai=topico.id, tipo='pdf')
             .order_by(Topico.ordem, Topico.nome)
             .all()
         )
     elif topico.tipo == 'pasta':
         conteudo = (
             Topico.query
-            .filter_by(id_usuario=current_user.id, id_pai=topico.id)
+            .filter_by(id_usuario=get_usuario_ativo().id, id_pai=topico.id)
             .order_by(Topico.ordem, Topico.nome)
             .all()
         )
@@ -845,7 +851,7 @@ def reordenar_topico(id):
     # Busca todos os irmãos (exceto o próprio item) ordenados
     irmaos = (
         Topico.query
-        .filter_by(id_usuario=current_user.id, id_pai=alvo.id_pai)
+        .filter_by(id_usuario=get_usuario_ativo().id, id_pai=alvo.id_pai)
         .filter(Topico.id != topico.id)
         .order_by(Topico.ordem, Topico.id)
         .all()
@@ -880,7 +886,7 @@ def _eh_descendente(topico_id, candidato_pai_id):
             break
         visitados.add(current_id)
         current_id = db.session.query(Topico.id_pai).filter_by(
-            id=current_id, id_usuario=current_user.id
+            id=current_id, id_usuario=get_usuario_ativo().id
         ).scalar()
     return False
 
@@ -944,7 +950,7 @@ def vincular_reuniao(id):
     if not topico or not topico.notas:
         return jsonify({'erro': 'Não encontrado'}), 404
     dados = request.get_json(silent=True) or {}
-    reuniao = Reuniao.query.filter_by(id=dados.get('reuniao_id'), id_usuario=current_user.id).first()
+    reuniao = Reuniao.query.filter_by(id=dados.get('reuniao_id'), id_usuario=get_usuario_ativo().id).first()
     if not reuniao:
         return jsonify({'erro': 'Reunião não encontrada'}), 404
     if reuniao not in topico.notas.reunioes_vinculadas:
@@ -989,7 +995,7 @@ def upload_icone(tipo):
     if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
         return jsonify({'erro': 'Formato inválido'}), 400
 
-    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'icones', str(current_user.id))
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'icones', str(get_usuario_ativo().id))
     os.makedirs(pasta, exist_ok=True)
 
     caminho_abs = os.path.join(pasta, f'{tipo}.png')
@@ -1001,11 +1007,11 @@ def upload_icone(tipo):
     result.save(caminho_abs, 'PNG')
 
     caminho_rel = os.path.relpath(caminho_abs, current_app.static_folder).replace('\\', '/')
-    ic = IconeCustomizado.query.filter_by(id_usuario=current_user.id, tipo=tipo).first()
+    ic = IconeCustomizado.query.filter_by(id_usuario=get_usuario_ativo().id, tipo=tipo).first()
     if ic:
         ic.caminho = caminho_rel
     else:
-        db.session.add(IconeCustomizado(id_usuario=current_user.id, tipo=tipo, caminho=caminho_rel))
+        db.session.add(IconeCustomizado(id_usuario=get_usuario_ativo().id, tipo=tipo, caminho=caminho_rel))
     db.session.commit()
 
     return jsonify({'ok': True, 'url': f'/static/{caminho_rel}'})
@@ -1099,7 +1105,7 @@ def buscar_topicos():
     topicos = (
         Topico.query
         .filter(
-            Topico.id_usuario == current_user.id,
+            Topico.id_usuario == get_usuario_ativo().id,
             Topico.tipo != 'pasta',
             Topico.nome.ilike(f'%{q}%')
         )
@@ -1123,7 +1129,7 @@ def pesquisar_topicos():
     por_nome = (
         Topico.query
         .filter(
-            Topico.id_usuario == current_user.id,
+            Topico.id_usuario == get_usuario_ativo().id,
             Topico.nome.ilike(f'%{q}%')
         )
         .order_by(Topico.nome)
@@ -1138,7 +1144,7 @@ def pesquisar_topicos():
             Topico.query
             .join(model_cls, join_col == Topico.id)
             .filter(
-                Topico.id_usuario == current_user.id,
+                Topico.id_usuario == get_usuario_ativo().id,
                 model_cls.conteudo.ilike(f'%{q}%')
             )
             .order_by(Topico.nome)
@@ -1178,7 +1184,7 @@ def resumo():
     # ── Kanban ────────────────────────────────────────────────────────────
     colunas = (
         ColunaKanban.query
-        .filter_by(id_usuario=current_user.id)
+        .filter_by(id_usuario=get_usuario_ativo().id)
         .order_by(ColunaKanban.ordem)
         .all()
     )
@@ -1213,7 +1219,7 @@ def resumo():
     tarefas_periodo = (
         TarefaFacil.query
         .filter(
-            TarefaFacil.id_usuario == current_user.id,
+            TarefaFacil.id_usuario == get_usuario_ativo().id,
             TarefaFacil.data_tarefa >= de,
             TarefaFacil.data_tarefa <= ate,
         )
@@ -1224,7 +1230,7 @@ def resumo():
     atrasadas = (
         TarefaFacil.query
         .filter(
-            TarefaFacil.id_usuario == current_user.id,
+            TarefaFacil.id_usuario == get_usuario_ativo().id,
             TarefaFacil.data_tarefa < hoje,
             TarefaFacil.concluida.is_(False),
         )
@@ -1241,7 +1247,7 @@ def resumo():
         .join(CartaoKanban, HistoricoEtapas.id_cartao == CartaoKanban.id)
         .join(ColunaKanban, CartaoKanban.id_coluna == ColunaKanban.id)
         .filter(
-            ColunaKanban.id_usuario == current_user.id,
+            ColunaKanban.id_usuario == get_usuario_ativo().id,
             HistoricoEtapas.data_entrada >= de_dt,
             HistoricoEtapas.data_entrada <= ate_dt,
         )
@@ -1268,7 +1274,7 @@ def resumo():
         'sql':      ('SQL','SQL',        '#e38c00'),
     }
     contagem: dict[str, int] = {}
-    for t in Topico.query.filter_by(id_usuario=current_user.id).all():
+    for t in Topico.query.filter_by(id_usuario=get_usuario_ativo().id).all():
         if t.tipo != 'pasta':
             contagem[t.tipo] = contagem.get(t.tipo, 0) + 1
 
@@ -1291,7 +1297,7 @@ def resumo():
         db.session.query(ProjetoRoadmap)
         .join(Roadmap, ProjetoRoadmap.id_roadmap == Roadmap.id)
         .filter(
-            Roadmap.id_usuario == current_user.id,
+            Roadmap.id_usuario == get_usuario_ativo().id,
             ProjetoRoadmap.data_inicio <= ano_fim,
             ProjetoRoadmap.data_fim >= ano_ini,
         )
@@ -1303,7 +1309,7 @@ def resumo():
     rm_total      = len(projetos_ano)
 
     # Roadmaps do usuário com contagens do ano
-    roadmaps_usuario = Roadmap.query.filter_by(id_usuario=current_user.id).all()
+    roadmaps_usuario = Roadmap.query.filter_by(id_usuario=get_usuario_ativo().id).all()
     rm_por_roadmap = []
     for r in roadmaps_usuario:
         ps = [p for p in projetos_ano if p.id_roadmap == r.id]

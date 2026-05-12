@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Usuários — NeuralNotes{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;margin:2rem auto">
+    <h2 style="margin-bottom:1.5rem">Gerenciar Usuários</h2>
+
+    <table style="width:100%;border-collapse:collapse;background:var(--card-bg,#1e1e2e);border-radius:8px;overflow:hidden">
+        <thead>
+            <tr style="background:var(--border-color,#2a2a3e)">
+                <th style="padding:.75rem 1rem;text-align:left">Nome</th>
+                <th style="padding:.75rem 1rem;text-align:left">Usuário</th>
+                <th style="padding:.75rem 1rem;text-align:center">Papel</th>
+                <th style="padding:.75rem 1rem;text-align:center">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in usuarios %}
+            <tr style="border-top:1px solid var(--border-color,#2a2a3e)" id="row-{{ u.id }}">
+                <td style="padding:.75rem 1rem">{{ u.nome }}</td>
+                <td style="padding:.75rem 1rem;opacity:.7">@{{ u.usuario }}</td>
+                <td style="padding:.75rem 1rem;text-align:center">
+                    {% if u.id == current_user.id %}
+                        <span style="color:#64748b;font-size:.85rem">você</span>
+                    {% else %}
+                    <select class="papel-select"
+                            data-id="{{ u.id }}"
+                            style="background:var(--input-bg,#16213e);color:inherit;border:1px solid var(--border-color,#2a2a3e);border-radius:4px;padding:.25rem .5rem;cursor:pointer">
+                        <option value="usuario" {% if u.papel == 'usuario' %}selected{% endif %}>Usuário</option>
+                        <option value="admin"   {% if u.papel == 'admin'   %}selected{% endif %}>Admin</option>
+                    </select>
+                    {% endif %}
+                </td>
+                <td style="padding:.75rem 1rem;text-align:center">
+                    {% if u.id != current_user.id %}
+                    <form action="{{ url_for('usuario.admin_visualizar', user_id=u.id) }}" method="post" style="display:inline">
+                        <button type="submit"
+                                style="background:{% if visualizando_id == u.id %}#b45309{% else %}#2563eb{% endif %};color:#fff;border:none;padding:.3rem .8rem;border-radius:4px;cursor:pointer;font-size:.85rem">
+                            {% if visualizando_id == u.id %}Visualizando{% else %}Visualizar{% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div id="toast" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;background:#16a34a;color:#fff;padding:.6rem 1.2rem;border-radius:6px;font-size:.9rem"></div>
+
+<script>
+document.querySelectorAll('.papel-select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+        var id = this.dataset.id;
+        var papel = this.value;
+        fetch('{{ url_for("usuario.admin_set_papel") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: parseInt(id), papel: papel})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                showToast('Papel atualizado para ' + papel);
+            } else {
+                showToast(data.erro || 'Erro', true);
+            }
+        });
+    });
+});
+
+function showToast(msg, erro) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = erro ? '#dc2626' : '#16a34a';
+    t.style.display = 'block';
+    setTimeout(function() { t.style.display = 'none'; }, 2500);
+}
+</script>
+{% endblock %}

@@ -8,6 +8,9 @@ from datetime import timedelta
 
 class Config:
     """Configurações base da aplicação."""
+    # Admin padrão — sempre mantido como admin, não pode ter o papel alterado
+    ADMIN_PADRAO = os.environ.get('ADMIN_PADRAO', 'joaostadler')
+
     # Flask
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     SESSION_COOKIE_SECURE = False

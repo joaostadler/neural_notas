@@ -8,9 +8,16 @@ from uuid import uuid4
 from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from models import AcessoKanban, CartaoKanban, ColunaKanban, CompartilhamentoKanban, ExecucaoCartao, HistoricoEtapas, Usuario, db
+from app.utils import get_usuario_ativo, verificar_acesso_modulo
+from models import AcessoKanban, CartaoKanban, ColunaKanban, CompartilhamentoKanban, ExecucaoCartao, HistoricoEtapas, QuadroKanban, Usuario, db
 
 bp_kanban = Blueprint('kanban', __name__, url_prefix='/kanban')
+
+
+@bp_kanban.before_request
+def _verificar_kanban():
+    return verificar_acesso_modulo('kanban')
+
 
 COLUNAS_PADRAO = [
     {'nome': 'A Fazer',      'cor': '#64748b'},
@@ -23,21 +30,27 @@ COLUNAS_PADRAO = [
 
 
 def _coluna_do_usuario(coluna_id):
-    return ColunaKanban.query.filter_by(id=coluna_id, id_usuario=current_user.id).first()
+    return ColunaKanban.query.filter_by(id=coluna_id, id_usuario=get_usuario_ativo().id).first()
 
 
 def _cartao_do_usuario(cartao_id):
     return (
         CartaoKanban.query
         .join(ColunaKanban)
-        .filter(CartaoKanban.id == cartao_id, ColunaKanban.id_usuario == current_user.id)
+        .filter(CartaoKanban.id == cartao_id, ColunaKanban.id_usuario == get_usuario_ativo().id)
         .first()
     )
 
 
-def _proxima_ordem_coluna():
-    ultima = db.session.query(db.func.max(ColunaKanban.ordem)).filter_by(id_usuario=current_user.id).scalar()
-    return (ultima or 0) + 1
+def _proxima_ordem_coluna(quadro_id=None):
+    q = db.session.query(db.func.max(ColunaKanban.ordem)).filter_by(id_usuario=get_usuario_ativo().id)
+    if quadro_id:
+        q = q.filter_by(id_quadro=quadro_id)
+    return (q.scalar() or 0) + 1
+
+
+def _quadro_do_usuario(quadro_id):
+    return QuadroKanban.query.filter_by(id=quadro_id, id_usuario=get_usuario_ativo().id).first()
 
 
 def _proxima_ordem_cartao(coluna_id):
@@ -48,8 +61,8 @@ def _proxima_ordem_cartao(coluna_id):
 @bp_kanban.route('')
 @login_required
 def kanban():
-    # Verifica se está visualizando kanban de outro usuário
     dono_id = request.args.get('dono', type=int)
+    quadro_id = request.args.get('quadro', type=int)
     readonly = False
     eh_admin = False
     dono_nome = None
@@ -59,7 +72,7 @@ def kanban():
             id_dono=dono_id, id_convidado=current_user.id
         ).first()
         if not acesso:
-            dono_id = None  # Sem acesso: mostra próprio kanban
+            dono_id = None
         else:
             readonly = True
             eh_admin = (acesso.papel == 'admin')
@@ -67,31 +80,57 @@ def kanban():
     else:
         dono_id = None
 
-    uid_efetivo = dono_id or current_user.id
+    uid_efetivo = dono_id or get_usuario_ativo().id
 
-    colunas = (
-        ColunaKanban.query.filter_by(id_usuario=uid_efetivo)
-        .order_by(ColunaKanban.ordem)
+    # ── Quadros (múltiplos boards por usuário) ──────────────────────────
+    quadros = (
+        QuadroKanban.query.filter_by(id_usuario=uid_efetivo)
+        .order_by(QuadroKanban.ordem)
         .all()
     )
 
-    # Cria colunas padrão apenas para o próprio kanban
-    if not colunas and not readonly:
+    # Auto-migração: cria quadro padrão e associa colunas existentes sem quadro
+    if not quadros and not readonly:
+        quadro_padrao = QuadroKanban(id_usuario=uid_efetivo, nome='Meu Kanban', ordem=1)
+        db.session.add(quadro_padrao)
+        db.session.flush()
+        ColunaKanban.query.filter_by(id_usuario=uid_efetivo, id_quadro=None).update(
+            {'id_quadro': quadro_padrao.id}
+        )
+        db.session.commit()
+        quadros = [quadro_padrao]
+
+    quadro_ativo = next((q for q in quadros if q.id == quadro_id), None) or (quadros[0] if quadros else None)
+
+    # ── Colunas do quadro ativo ─────────────────────────────────────────
+    if quadro_ativo:
+        colunas = (
+            ColunaKanban.query
+            .filter_by(id_usuario=uid_efetivo, id_quadro=quadro_ativo.id)
+            .order_by(ColunaKanban.ordem)
+            .all()
+        )
+    else:
+        colunas = []
+
+    # Cria colunas padrão apenas para o próprio quadro vazio
+    if not colunas and not readonly and quadro_ativo:
         for i, col in enumerate(COLUNAS_PADRAO):
             db.session.add(ColunaKanban(
-                id_usuario=current_user.id,
+                id_usuario=uid_efetivo,
+                id_quadro=quadro_ativo.id,
                 nome=col['nome'],
                 cor=col['cor'],
                 ordem=i + 1,
             ))
         db.session.commit()
         colunas = (
-            ColunaKanban.query.filter_by(id_usuario=current_user.id)
+            ColunaKanban.query
+            .filter_by(id_usuario=uid_efetivo, id_quadro=quadro_ativo.id)
             .order_by(ColunaKanban.ordem)
             .all()
         )
 
-    # Usuário (não admin) só vê colunas configuradas
     if readonly and not eh_admin:
         comp = CompartilhamentoKanban.query.filter_by(id_usuario=uid_efetivo).first()
         if comp and comp.colunas_visiveis:
@@ -110,8 +149,25 @@ def kanban():
     for col in colunas:
         col.cartoes_ordenados = sorted(col.cartoes, key=lambda c: c.ordem)
 
-    # Kanbans compartilhados com o usuário atual (para o dropdown)
-    acessos_recebidos = AcessoKanban.query.filter_by(id_convidado=current_user.id).all()
+    # ── Data de entrada em cada etapa ───────────────────────────────────
+    all_card_ids = [c.id for col in colunas for c in col.cartoes_ordenados]
+    entradas = {}
+    if all_card_ids:
+        histos = HistoricoEtapas.query.filter(
+            HistoricoEtapas.id_cartao.in_(all_card_ids)
+        ).all()
+        histo_map = {}
+        for h in histos:
+            key = (h.id_cartao, h.id_coluna)
+            if key not in histo_map or h.data_entrada > histo_map[key]:
+                histo_map[key] = h.data_entrada
+        for col in colunas:
+            for cartao in col.cartoes_ordenados:
+                dt = histo_map.get((cartao.id, col.id))
+                if dt:
+                    entradas[cartao.id] = dt
+
+    acessos_recebidos = AcessoKanban.query.filter_by(id_convidado=get_usuario_ativo().id).all()
     kanbans_compartilhados = [
         {'id': a.id_dono, 'nome': Usuario.query.get(a.id_dono).nome, 'papel': a.papel}
         for a in acessos_recebidos
@@ -122,12 +178,61 @@ def kanban():
         colunas=colunas,
         ultima_coluna_id=ultima_coluna_id,
         conclusoes=conclusoes,
+        entradas=entradas,
         readonly=readonly,
         eh_admin=eh_admin,
         dono_nome=dono_nome,
         dono_id=dono_id,
+        quadros=quadros,
+        quadro_ativo=quadro_ativo,
         kanbans_compartilhados=kanbans_compartilhados,
     )
+
+
+# ── Colunas ───────────────────────────────────────────────────────────────────
+
+# ── Quadros ───────────────────────────────────────────────────────────────────
+
+@bp_kanban.route('/quadros', methods=['POST'])
+@login_required
+def criar_quadro():
+    dados = request.get_json(silent=True) or {}
+    nome = (dados.get('nome') or '').strip()
+    if not nome:
+        return jsonify({'erro': 'Nome obrigatório'}), 400
+    proxima = (db.session.query(db.func.max(QuadroKanban.ordem)).filter_by(id_usuario=get_usuario_ativo().id).scalar() or 0) + 1
+    quadro = QuadroKanban(id_usuario=get_usuario_ativo().id, nome=nome, ordem=proxima)
+    db.session.add(quadro)
+    db.session.commit()
+    return jsonify({'id': quadro.id, 'nome': quadro.nome, 'ordem': quadro.ordem}), 201
+
+
+@bp_kanban.route('/quadros/<int:id>', methods=['PUT'])
+@login_required
+def editar_quadro(id):
+    quadro = _quadro_do_usuario(id)
+    if not quadro:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    nome = (dados.get('nome') or '').strip()
+    if nome:
+        quadro.nome = nome
+    db.session.commit()
+    return jsonify({'ok': True, 'nome': quadro.nome})
+
+
+@bp_kanban.route('/quadros/<int:id>', methods=['DELETE'])
+@login_required
+def excluir_quadro(id):
+    quadro = _quadro_do_usuario(id)
+    if not quadro:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    total = QuadroKanban.query.filter_by(id_usuario=get_usuario_ativo().id).count()
+    if total <= 1:
+        return jsonify({'erro': 'Não é possível excluir o único quadro'}), 400
+    db.session.delete(quadro)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 # ── Colunas ───────────────────────────────────────────────────────────────────
@@ -138,15 +243,19 @@ def criar_coluna():
     dados = request.get_json(silent=True) or {}
     nome = (dados.get('nome') or '').strip()
     cor = (dados.get('cor') or '#4a9eff').strip()
+    quadro_id = dados.get('quadro_id')
 
     if not nome:
         return jsonify({'erro': 'Nome obrigatório'}), 400
 
+    quadro = _quadro_do_usuario(quadro_id) if quadro_id else None
+
     coluna = ColunaKanban(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
+        id_quadro=quadro.id if quadro else None,
         nome=nome,
         cor=cor,
-        ordem=_proxima_ordem_coluna(),
+        ordem=_proxima_ordem_coluna(quadro.id if quadro else None),
     )
     db.session.add(coluna)
     db.session.commit()
@@ -288,7 +397,7 @@ def mover_cartao(id):
         return jsonify({'erro': 'Coluna inválida'}), 400
 
     colunas = (
-        ColunaKanban.query.filter_by(id_usuario=current_user.id)
+        ColunaKanban.query.filter_by(id_usuario=get_usuario_ativo().id)
         .order_by(ColunaKanban.ordem)
         .all()
     )
@@ -334,7 +443,7 @@ def upload_imagem_kanban():
     if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
         return jsonify({'erro': 'Formato inválido'}), 400
 
-    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'kanban', str(current_user.id))
+    pasta = os.path.join(current_app.config['UPLOAD_FOLDER'], 'kanban', str(get_usuario_ativo().id))
     os.makedirs(pasta, exist_ok=True)
 
     nome_arquivo = f'{uuid4().hex}.{"png" if ext == "png" else "jpg"}'
@@ -399,7 +508,7 @@ def excluir_execucao(id):
         ExecucaoCartao.query
         .join(CartaoKanban)
         .join(ColunaKanban)
-        .filter(ExecucaoCartao.id == id, ColunaKanban.id_usuario == current_user.id)
+        .filter(ExecucaoCartao.id == id, ColunaKanban.id_usuario == get_usuario_ativo().id)
         .first()
     )
     if not execucao:
@@ -416,7 +525,7 @@ def toggle_execucao(id):
         ExecucaoCartao.query
         .join(CartaoKanban)
         .join(ColunaKanban)
-        .filter(ExecucaoCartao.id == id, ColunaKanban.id_usuario == current_user.id)
+        .filter(ExecucaoCartao.id == id, ColunaKanban.id_usuario == get_usuario_ativo().id)
         .first()
     )
     if not execucao:

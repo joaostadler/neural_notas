@@ -5,10 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}NeuralNotes - Workspace de Conhecimento{% endblock %}</title>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        .admin-banner {
+            background: #b45309;
+            color: #fff;
+            padding: .5rem 1.5rem;
+            font-size: .875rem;
+            display: flex;
+            align-items: center;
+        }
+        .admin-banner-btn {
+            background: rgba(255,255,255,.2);
+            border: 1px solid rgba(255,255,255,.5);
+            color: #fff;
+            padding: .25rem .75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: .8rem;
+        }
+        .admin-banner-btn:hover { background: rgba(255,255,255,.35); }
+        .navbar-role-badge {
+            font-size: .62rem; font-weight: 700; padding: .15rem .4rem;
+            border-radius: 99px; text-transform: uppercase; letter-spacing: .3px;
+            vertical-align: middle; margin-left: .3rem;
+        }
+        .navbar-role-admin { background: #b45309; color: #fff; }
+        .navbar-role-user  { background: rgba(255,255,255,.12); color: rgba(255,255,255,.6); }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     {% if current_user.is_authenticated %}
+    {% if admin_visualizando %}
+    <div class="admin-banner">
+        <span>🔐 Modo Admin &mdash; visualizando como <strong>{{ admin_visualizando.nome }}</strong> ({{ admin_visualizando.usuario }})</span>
+        <form action="{{ url_for('usuario.admin_voltar') }}" method="post" style="display:inline;margin-left:1rem">
+            <button type="submit" class="admin-banner-btn">Voltar ao painel</button>
+        </form>
+    </div>
+    {% endif %}
     <nav class="navbar">
         <div class="navbar-brand">
             <a href="{{ url_for('main.dashboard') }}" class="brand-logo">🧠 NeuralNotes</a>
@@ -19,7 +54,15 @@
             <a href="{{ url_for('tarefas.tarefas') }}" class="navbar-item navbar-link">Tarefas</a>
             <a href="{{ url_for('reunioes.reunioes') }}" class="navbar-item navbar-link">Reuniões</a>
             <a href="{{ url_for('roadmap.lista') }}" class="navbar-item navbar-link">Roadmap</a>
-            <a href="{{ url_for('usuario.perfil') }}" class="navbar-item navbar-link" title="Minha Conta">{{ current_user.nome }}</a>
+            {% if current_user.papel == 'admin' %}
+            <a href="{{ url_for('usuario.admin_usuarios') }}" class="navbar-item navbar-link">Usuários</a>
+            {% endif %}
+            <a href="{{ url_for('usuario.perfil') }}" class="navbar-item navbar-link" title="Minha Conta">
+                {{ current_user.nome }}
+                <span class="navbar-role-badge {% if current_user.papel == 'admin' %}navbar-role-admin{% else %}navbar-role-user{% endif %}">
+                    {{ 'Admin' if current_user.papel == 'admin' else 'Usuário' }}
+                </span>
+            </a>
             <a href="{{ url_for('auth.logout') }}" class="navbar-item btn-logout">Sair</a>
         </div>
     </nav>

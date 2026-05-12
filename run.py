@@ -23,3 +23,6 @@ if __name__ == '__main__':
 
     print(f"Iniciando NeuralNotes em http://localhost:{port}")
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=False)
+
+
+

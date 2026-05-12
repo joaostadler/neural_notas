@@ -5,13 +5,19 @@ from datetime import date, datetime
 from flask import Blueprint, jsonify, render_template, request
 from flask_login import current_user, login_required
 
+from app.utils import get_usuario_ativo, verificar_acesso_modulo
 from models import TarefaFacil, db
 
 bp_tarefas = Blueprint('tarefas', __name__, url_prefix='/tarefas')
 
 
+@bp_tarefas.before_request
+def _verificar_tarefas():
+    return verificar_acesso_modulo('tarefas')
+
+
 def _tarefa_do_usuario(tarefa_id):
-    return TarefaFacil.query.filter_by(id=tarefa_id, id_usuario=current_user.id).first()
+    return TarefaFacil.query.filter_by(id=tarefa_id, id_usuario=get_usuario_ativo().id).first()
 
 
 @bp_tarefas.route('')
@@ -19,7 +25,7 @@ def _tarefa_do_usuario(tarefa_id):
 def tarefas():
     itens = (
         TarefaFacil.query
-        .filter_by(id_usuario=current_user.id)
+        .filter_by(id_usuario=get_usuario_ativo().id)
         .order_by(TarefaFacil.data_tarefa.desc(), TarefaFacil.criado_em.desc())
         .all()
     )
@@ -42,7 +48,7 @@ def criar_tarefa():
         return jsonify({'erro': 'Data inválida'}), 400
 
     tarefa = TarefaFacil(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         data_tarefa=data_obj,
         solicitante=(dados.get('solicitante') or '').strip(),
         descricao=descricao,

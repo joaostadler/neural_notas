@@ -5,14 +5,20 @@ from datetime import date
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
+from app.utils import get_usuario_ativo, verificar_acesso_modulo
 from models import (CartaoKanban, ColunaKanban, ColunaRoadmap, LinhaRoadmap,
                     ProjetoRoadmap, Roadmap, SubgrupoRoadmap, db)
 
 bp_roadmap = Blueprint('roadmap', __name__, url_prefix='/roadmap')
 
 
+@bp_roadmap.before_request
+def _verificar_roadmap():
+    return verificar_acesso_modulo('roadmap')
+
+
 def _roadmap_do_usuario(roadmap_id):
-    return Roadmap.query.filter_by(id=roadmap_id, id_usuario=current_user.id).first()
+    return Roadmap.query.filter_by(id=roadmap_id, id_usuario=get_usuario_ativo().id).first()
 
 
 def _parse_date(valor):
@@ -134,7 +140,7 @@ def _posicoes(roadmap):
 @login_required
 def lista():
     roadmaps = (Roadmap.query
-                .filter_by(id_usuario=current_user.id)
+                .filter_by(id_usuario=get_usuario_ativo().id)
                 .order_by(Roadmap.criado_em.desc())
                 .all())
     if roadmaps:
@@ -151,7 +157,7 @@ def criar():
     nome = (dados.get('nome') or '').strip()
     if not nome:
         return jsonify({'erro': 'Nome obrigatório'}), 400
-    r = Roadmap(id_usuario=current_user.id, nome=nome)
+    r = Roadmap(id_usuario=get_usuario_ativo().id, nome=nome)
     db.session.add(r)
     db.session.commit()
     return jsonify({'id': r.id, 'nome': r.nome}), 201
@@ -165,7 +171,7 @@ def ver(roadmap_id):
         flash('Roadmap não encontrado.', 'warning')
         return redirect(url_for('roadmap.lista'))
     todos_roadmaps = (Roadmap.query
-                      .filter_by(id_usuario=current_user.id)
+                      .filter_by(id_usuario=get_usuario_ativo().id)
                       .order_by(Roadmap.nome)
                       .all())
     colunas_pos, linhas_data, tem_subgrupos = _posicoes(r)
@@ -208,7 +214,7 @@ def definir_padrao(roadmap_id):
         return jsonify({'erro': 'Não encontrado'}), 404
     dados = request.get_json(silent=True) or {}
     ativar = dados.get('ativo', True)
-    Roadmap.query.filter_by(id_usuario=current_user.id).update({'padrao': False})
+    Roadmap.query.filter_by(id_usuario=get_usuario_ativo().id).update({'padrao': False})
     if ativar:
         r.padrao = True
     db.session.commit()
@@ -379,7 +385,7 @@ def buscar_cartoes():
         return jsonify([])
     cartoes = (CartaoKanban.query
                .join(ColunaKanban, CartaoKanban.id_coluna == ColunaKanban.id)
-               .filter(ColunaKanban.id_usuario == current_user.id,
+               .filter(ColunaKanban.id_usuario == get_usuario_ativo().id,
                        CartaoKanban.titulo.ilike(f'%{q}%'))
                .order_by(CartaoKanban.titulo)
                .limit(8).all())
@@ -396,7 +402,7 @@ def _vincular_cartoes(projeto, cartoes_ids):
     cartoes = (CartaoKanban.query
                .join(ColunaKanban, CartaoKanban.id_coluna == ColunaKanban.id)
                .filter(CartaoKanban.id.in_(cartoes_ids),
-                       ColunaKanban.id_usuario == current_user.id)
+                       ColunaKanban.id_usuario == get_usuario_ativo().id)
                .all())
     projeto.cartoes = cartoes
 

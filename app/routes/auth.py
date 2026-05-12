@@ -43,10 +43,15 @@ def register():
             flash('Este usuário já existe.', 'erro')
             return redirect(url_for('auth.register'))
 
-        # Criar novo usuário
-        novo_usuario = Usuario(nome=nome, usuario=usuario)
+        # Criar novo usuário — primeiro cadastrado vira admin automaticamente
+        eh_primeiro = Usuario.query.count() == 0
+        novo_usuario = Usuario(
+            nome=nome,
+            usuario=usuario,
+            papel='admin' if eh_primeiro else 'usuario',
+        )
         novo_usuario.definir_senha(senha)
-        
+
         db.session.add(novo_usuario)
         db.session.commit()
 

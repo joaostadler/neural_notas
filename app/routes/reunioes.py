@@ -8,9 +8,16 @@ from flask import Blueprint, jsonify, render_template, request, current_app
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
+from app.utils import get_usuario_ativo, verificar_acesso_modulo
 from models import Reuniao, db
 
 bp_reunioes = Blueprint('reunioes', __name__, url_prefix='/reunioes')
+
+
+@bp_reunioes.before_request
+def _verificar_reunioes():
+    return verificar_acesso_modulo('reunioes')
+
 
 _ALLOWED_IMG = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 _MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -26,7 +33,7 @@ def _upload_dir():
 
 
 def _reuniao_do_usuario(reuniao_id):
-    return Reuniao.query.filter_by(id=reuniao_id, id_usuario=current_user.id).first()
+    return Reuniao.query.filter_by(id=reuniao_id, id_usuario=get_usuario_ativo().id).first()
 
 
 def _inicio_semana(ref: date) -> date:
@@ -61,7 +68,7 @@ def _serializar(r: Reuniao) -> dict:
 @login_required
 def lista_reunioes():
     q = request.args.get('q', '').strip()
-    query = Reuniao.query.filter_by(id_usuario=current_user.id)
+    query = Reuniao.query.filter_by(id_usuario=get_usuario_ativo().id)
     if q:
         query = query.filter(Reuniao.nome.ilike(f'%{q}%'))
     reunioes = query.order_by(Reuniao.data_reuniao.desc()).limit(20).all()
@@ -88,7 +95,7 @@ def reunioes():
     itens = (
         Reuniao.query
         .filter(
-            Reuniao.id_usuario == current_user.id,
+            Reuniao.id_usuario == get_usuario_ativo().id,
             Reuniao.data_reuniao >= inicio,
             Reuniao.data_reuniao <= fim,
         )
@@ -132,7 +139,7 @@ def criar_reuniao():
         return jsonify({'erro': 'Data inválida'}), 400
 
     r = Reuniao(
-        id_usuario=current_user.id,
+        id_usuario=get_usuario_ativo().id,
         nome=nome,
         equipe=(dados.get('equipe') or '').strip(),
         data_reuniao=data_obj,

@@ -22,6 +22,7 @@ class Usuario(UserMixin, db.Model):
     nome = db.Column(db.String(255), nullable=False)
     usuario = db.Column(db.String(80), nullable=False, unique=True, index=True)
     senha_hash = db.Column(db.String(255), nullable=False)
+    papel = db.Column(db.String(10), nullable=False, default='usuario')
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relacionamentos
@@ -30,6 +31,7 @@ class Usuario(UserMixin, db.Model):
     tarefas_faceis = db.relationship('TarefaFacil', backref='usuario', lazy=True, cascade='all, delete-orphan')
     icones_customizados = db.relationship('IconeCustomizado', backref='usuario', lazy=True, cascade='all, delete-orphan')
     compartilhamento_kanban = db.relationship('CompartilhamentoKanban', backref='usuario', uselist=False, cascade='all, delete-orphan')
+    permissoes = db.relationship('PermissaoUsuario', backref='dono', uselist=False, cascade='all, delete-orphan')
 
     def definir_senha(self, senha: str) -> None:
         """Define e faz hash da senha."""
@@ -129,12 +131,29 @@ class Caderno(db.Model):
         return f'<Caderno {self.titulo}>'
 
 
+class QuadroKanban(db.Model):
+    """Quadro kanban — agrupa colunas de um mesmo usuário."""
+    __tablename__ = 'quadros_kanban'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    nome = db.Column(db.String(255), nullable=False, default='Meu Kanban')
+    ordem = db.Column(db.Integer, default=0)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    colunas = db.relationship('ColunaKanban', backref='quadro', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<QuadroKanban {self.nome}>'
+
+
 class ColunaKanban(db.Model):
     """Modelo de colunas do quadro kanban."""
     __tablename__ = 'colunas_kanban'
 
     id = db.Column(db.Integer, primary_key=True)
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    id_quadro = db.Column(db.Integer, db.ForeignKey('quadros_kanban.id', ondelete='CASCADE'), nullable=True)
     nome = db.Column(db.String(255), nullable=False)
     cor = db.Column(db.String(7), default='#4a9eff')
     ordem = db.Column(db.Integer, default=0)
@@ -416,6 +435,21 @@ class AcessoKanban(db.Model):
 
     def __repr__(self):
         return f'<AcessoKanban dono={self.id_dono} convidado={self.id_convidado} papel={self.papel}>'
+
+
+class PermissaoUsuario(db.Model):
+    """Controle de acesso por módulo para usuários comuns (admins sempre têm acesso total)."""
+    __tablename__ = 'permissoes_usuario'
+
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), primary_key=True)
+    biblioteca = db.Column(db.Boolean, default=True, nullable=False)
+    kanban     = db.Column(db.Boolean, default=True, nullable=False)
+    tarefas    = db.Column(db.Boolean, default=True, nullable=False)
+    reunioes   = db.Column(db.Boolean, default=True, nullable=False)
+    roadmap    = db.Column(db.Boolean, default=True, nullable=False)
+
+    def __repr__(self):
+        return f'<PermissaoUsuario usuario={self.id_usuario}>'
 
 
 class Roadmap(db.Model):

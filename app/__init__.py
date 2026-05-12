@@ -47,6 +47,9 @@ def criar_app(config=None):
         if dialect == 'postgresql':
             # PostgreSQL: IF NOT EXISTS é suportado — roda tudo em uma transação
             pg_stmts = """
+                ALTER TABLE usuarios
+                    ADD COLUMN IF NOT EXISTS papel VARCHAR(10) NOT NULL DEFAULT 'usuario';
+
                 ALTER TABLE tarefas_faceis
                     ADD COLUMN IF NOT EXISTS concluida_em         TIMESTAMP,
                     ADD COLUMN IF NOT EXISTS observacao_conclusao TEXT;
@@ -80,6 +83,10 @@ def criar_app(config=None):
 
                 ALTER TABLE projetos_roadmap
                     ADD COLUMN IF NOT EXISTS ordem INTEGER DEFAULT 0;
+
+                ALTER TABLE colunas_kanban
+                    ADD COLUMN IF NOT EXISTS id_quadro INTEGER
+                        REFERENCES quadros_kanban(id) ON DELETE CASCADE;
             """
             for stmt in pg_stmts.strip().split(';'):
                 stmt = stmt.strip()
@@ -92,6 +99,7 @@ def criar_app(config=None):
         else:
             # SQLite: não suporta IF NOT EXISTS em ALTER TABLE — ignora erro de duplicata
             for stmt in [
+                "ALTER TABLE usuarios ADD COLUMN papel VARCHAR(10) NOT NULL DEFAULT 'usuario'",
                 'ALTER TABLE tarefas_faceis ADD COLUMN concluida_em DATETIME',
                 'ALTER TABLE tarefas_faceis ADD COLUMN observacao_conclusao TEXT',
                 'ALTER TABLE pdfs ADD COLUMN percentual_lido INTEGER DEFAULT 0',
@@ -107,12 +115,34 @@ def criar_app(config=None):
                 'ALTER TABLE roadmaps ADD COLUMN padrao BOOLEAN DEFAULT 0',
                 "ALTER TABLE projetos_roadmap ADD COLUMN descricao TEXT DEFAULT ''",
                 'ALTER TABLE projetos_roadmap ADD COLUMN ordem INTEGER DEFAULT 0',
+                'ALTER TABLE colunas_kanban ADD COLUMN id_quadro INTEGER REFERENCES quadros_kanban(id)',
             ]:
                 try:
                     db.session.execute(db.text(stmt))
                     db.session.commit()
                 except Exception:
                     db.session.rollback()
+
+        # Garantir que o admin padrão sempre seja admin
+        admin_padrao = app.config.get('ADMIN_PADRAO')
+        if admin_padrao:
+            u = Usuario.query.filter_by(usuario=admin_padrao).first()
+            if u and u.papel != 'admin':
+                u.papel = 'admin'
+                db.session.commit()
+
+    # Context processor: expõe usuario_visualizado para todos os templates
+    @app.context_processor
+    def _inject_admin_context():
+        from flask_login import current_user
+        from flask import session as _session
+        if current_user.is_authenticated and current_user.papel == 'admin':
+            vid = _session.get('admin_visualizando_id')
+            if vid and vid != current_user.id:
+                u = Usuario.query.get(vid)
+                if u:
+                    return {'admin_visualizando': u}
+        return {'admin_visualizando': None}
 
     # Registrar blueprints
     from app.routes.auth import bp_auth

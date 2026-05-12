@@ -136,6 +136,44 @@
 .pf-role-select:focus { outline: none; border-color: var(--destaque); }
 .pf-user-toggle { /* usa .pf-switch */ }
 .pf-empty-users { color: var(--apagado); font-size: .875rem; text-align: center; padding: 20px 0; }
+
+/* ── Gerenciamento de usuários (admin) ── */
+.pf-mgmt-user-item {
+    border: 1px solid var(--borda); border-radius: 10px; background: var(--bg);
+    margin-bottom: 10px; overflow: hidden;
+}
+.pf-mgmt-user-hdr {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; cursor: pointer; user-select: none;
+}
+.pf-mgmt-user-hdr:hover { background: var(--cartao); }
+.pf-mgmt-user-body { padding: 0 14px 14px; border-top: 1px solid var(--borda); display: none; }
+.pf-mgmt-user-body.open { display: block; }
+.pf-mgmt-role-row { display: flex; align-items: center; gap: 8px; padding: 10px 0 8px; }
+.pf-mgmt-role-label { font-size: .8rem; color: var(--apagado); font-weight: 600; min-width: 70px; }
+.pf-telas-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px;
+    padding-top: 4px;
+}
+.pf-tela-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .45rem .7rem; border: 1px solid var(--borda); border-radius: 7px;
+    font-size: .83rem; color: var(--texto); background: var(--painel);
+}
+.pf-tela-label { font-weight: 500; }
+.pf-telas-title { font-size: .8rem; color: var(--apagado); font-weight: 600; margin-bottom: 6px; padding-top: 2px; }
+.pf-papel-badge {
+    font-size: .68rem; font-weight: 700; padding: .15rem .45rem; border-radius: 99px; margin-left: 6px;
+}
+.pf-papel-admin   { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.pf-papel-usuario { background: var(--cartao); color: var(--apagado); border: 1px solid var(--borda); }
+.pf-reset-row { display: flex; gap: 8px; align-items: center; }
+.pf-reset-input {
+    flex: 1; border: 1px solid var(--borda); border-radius: 6px;
+    padding: .4rem .7rem; font-size: .875rem; background: var(--bg); color: var(--texto);
+}
+.pf-reset-input:focus { outline: none; border-color: var(--destaque); }
+.pf-reset-err { font-size: .78rem; color: #dc2626; margin-top: 5px; }
 </style>
 {% endblock %}
 
@@ -150,7 +188,15 @@
         </div>
 
         <div style="margin-bottom:14px">
-            <div class="pf-info-row"><strong>Usuário</strong><span>{{ current_user.usuario }}</span></div>
+            <div class="pf-info-row">
+                <strong>Usuário</strong>
+                <span>
+                    {{ current_user.usuario }}
+                    <span class="pf-papel-badge {% if current_user.papel == 'admin' %}pf-papel-admin{% else %}pf-papel-usuario{% endif %}">
+                        {{ 'Admin' if current_user.papel == 'admin' else 'Usuário' }}
+                    </span>
+                </span>
+            </div>
             <div class="pf-info-row"><strong>Membro desde</strong><span>{{ current_user.criado_em.strftime('%d/%m/%Y') }}</span></div>
         </div>
 
@@ -233,6 +279,29 @@
         <span class="pf-save-ok" id="pfColsOk">✓ Salvo</span>
     </div>
 
+    {% if current_user.papel == 'admin' %}
+    <!-- ── Gerenciar usuários (admin) ── -->
+    <div class="pf-section" id="pfMgmtSection">
+        <div class="pf-section-hdr">
+            <h2 class="pf-section-title">🛡️ Gerenciar Usuários</h2>
+            <span class="pf-badge pf-badge-green">Admin</span>
+        </div>
+
+        <div class="pf-hint" style="margin-bottom:14px">
+            Defina o papel de cada usuário e quais áreas do sistema eles podem acessar.
+            Usuários com papel <strong>Admin</strong> sempre têm acesso total.
+        </div>
+
+        <div class="pf-user-search-row">
+            <input type="text" class="pf-user-search" id="pfMgmtSearch" placeholder="Buscar usuário…">
+        </div>
+
+        <div id="pfMgmtList">
+            <div class="pf-empty-users">Carregando…</div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ── Usuários do sistema ── -->
     <div class="pf-section">
         <div class="pf-section-hdr">
@@ -306,6 +375,174 @@
         ok.style.display = 'inline';
         setTimeout(() => { ok.style.display = 'none'; }, 2000);
     });
+
+    /* ── Gerenciar usuários (admin) ── */
+    {% if current_user.papel == 'admin' %}
+    (function() {
+        const MODULOS = [
+            { key: 'biblioteca', label: '📚 Biblioteca' },
+            { key: 'kanban',     label: '📋 Kanban' },
+            { key: 'tarefas',    label: '🎯 Tarefas' },
+            { key: 'reunioes',   label: '📅 Reuniões' },
+            { key: 'roadmap',    label: '🗺️ Roadmap' },
+        ];
+
+        let todosUsuariosMgmt = [];
+
+        function escH(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function renderMgmt(lista) {
+            const container = document.getElementById('pfMgmtList');
+            if (!lista.length) {
+                container.innerHTML = '<div class="pf-empty-users">Nenhum outro usuário cadastrado.</div>';
+                return;
+            }
+            container.innerHTML = lista.map(u => `
+                <div class="pf-mgmt-user-item" data-id="${u.id}">
+                    <div class="pf-mgmt-user-hdr" onclick="toggleMgmtBody(this)">
+                        <div class="pf-user-avatar">${escH(u.nome.charAt(0))}</div>
+                        <div class="pf-user-info">
+                            <div class="pf-user-nome">${escH(u.nome)}
+                                <span class="pf-papel-badge ${u.papel==='admin' ? 'pf-papel-admin' : 'pf-papel-usuario'}">
+                                    ${u.papel==='admin' ? 'Admin' : 'Usuário'}
+                                </span>
+                            </div>
+                            <div class="pf-user-login">@${escH(u.usuario)}</div>
+                        </div>
+                        <span style="margin-left:auto;color:var(--apagado);font-size:.8rem">▼</span>
+                    </div>
+                    <div class="pf-mgmt-user-body">
+                        <div class="pf-mgmt-role-row">
+                            <span class="pf-mgmt-role-label">Papel</span>
+                            <select class="pf-role-select mgmt-papel-select" data-id="${u.id}" onchange="mgmtSetPapel(${u.id}, this)">
+                                <option value="usuario" ${u.papel==='usuario' ? 'selected' : ''}>Usuário</option>
+                                <option value="admin"   ${u.papel==='admin'   ? 'selected' : ''}>Admin</option>
+                            </select>
+                        </div>
+                        <div class="pf-telas-title">Acesso às telas</div>
+                        <div class="pf-telas-grid">
+                            ${MODULOS.map(m => `
+                                <div class="pf-tela-item">
+                                    <span class="pf-tela-label">${m.label}</span>
+                                    <label class="pf-switch" title="${u.permissoes[m.key] ? 'Bloquear' : 'Liberar'}">
+                                        <input type="checkbox" ${u.permissoes[m.key] ? 'checked' : ''}
+                                               onchange="mgmtSetPermissao(${u.id}, '${m.key}', this)">
+                                        <span class="pf-switch-slider"></span>
+                                    </label>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <hr style="border:none;border-top:1px solid var(--borda);margin:12px 0">
+                        <div class="pf-telas-title">Redefinir senha</div>
+                        <div class="pf-reset-row" id="reset-row-${u.id}">
+                            <input type="password" class="pf-reset-input" id="reset-input-${u.id}"
+                                   placeholder="Nova senha (mín. 4 caracteres)" autocomplete="new-password">
+                            <button class="btn btn-secondary btn-sm" onclick="mgmtRedefinirSenha(${u.id})">Salvar senha</button>
+                        </div>
+                        <div class="pf-reset-err" id="reset-err-${u.id}" style="display:none"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.toggleMgmtBody = function(hdr) {
+            const body = hdr.nextElementSibling;
+            body.classList.toggle('open');
+            hdr.querySelector('span:last-child').textContent = body.classList.contains('open') ? '▲' : '▼';
+        };
+
+        window.mgmtSetPapel = async function(id, sel) {
+            const papel = sel.value;
+            const r = await fetch('/usuario/admin/papel', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id, papel}),
+            });
+            const d = await r.json();
+            if (d.ok) {
+                const item = sel.closest('.pf-mgmt-user-item');
+                const badge = item.querySelector('.pf-papel-badge');
+                badge.className = 'pf-papel-badge ' + (papel==='admin' ? 'pf-papel-admin' : 'pf-papel-usuario');
+                badge.textContent = papel==='admin' ? 'Admin' : 'Usuário';
+                const u = todosUsuariosMgmt.find(x => x.id===id);
+                if (u) u.papel = papel;
+                showToastMgmt('Papel atualizado');
+            } else {
+                showToastMgmt(d.erro || 'Erro', true);
+            }
+        };
+
+        window.mgmtRedefinirSenha = async function(id) {
+            const input = document.getElementById('reset-input-' + id);
+            const errEl = document.getElementById('reset-err-' + id);
+            const senha = input.value.trim();
+            errEl.style.display = 'none';
+            const r = await fetch('/usuario/admin/redefinir-senha/' + id, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({senha}),
+            });
+            const d = await r.json();
+            if (d.ok) {
+                input.value = '';
+                showToastMgmt('Senha redefinida com sucesso');
+            } else {
+                errEl.textContent = d.erro || 'Erro ao redefinir senha';
+                errEl.style.display = 'block';
+            }
+        };
+
+        window.mgmtSetPermissao = async function(id, modulo, chk) {
+            const valor = chk.checked;
+            const r = await fetch(`/usuario/admin/permissoes/${id}`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({modulo, valor}),
+            });
+            const d = await r.json();
+            if (!d.ok) {
+                chk.checked = !valor;
+                showToastMgmt(d.erro || 'Erro', true);
+            } else {
+                showToastMgmt('Permissão salva');
+            }
+        };
+
+        let toastTimer;
+        function showToastMgmt(msg, erro) {
+            let t = document.getElementById('pfMgmtToast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'pfMgmtToast';
+                t.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;padding:.6rem 1.2rem;border-radius:6px;font-size:.9rem;color:#fff;z-index:9999;transition:opacity .3s';
+                document.body.appendChild(t);
+            }
+            clearTimeout(toastTimer);
+            t.textContent = msg;
+            t.style.background = erro ? '#dc2626' : '#16a34a';
+            t.style.opacity = '1';
+            t.style.display = 'block';
+            toastTimer = setTimeout(() => { t.style.opacity = '0'; setTimeout(()=>{ t.style.display='none'; }, 300); }, 2000);
+        }
+
+        async function carregarMgmt() {
+            const r = await fetch('/usuario/admin/todos-usuarios');
+            todosUsuariosMgmt = await r.json();
+            renderMgmt(todosUsuariosMgmt);
+        }
+
+        document.getElementById('pfMgmtSearch').addEventListener('input', function() {
+            const q = this.value.toLowerCase();
+            renderMgmt(q ? todosUsuariosMgmt.filter(u =>
+                u.nome.toLowerCase().includes(q) || u.usuario.toLowerCase().includes(q)
+            ) : todosUsuariosMgmt);
+        });
+
+        carregarMgmt();
+    }());
+    {% endif %}
 
     /* ── Usuários do sistema ── */
     let todosUsuarios = [];

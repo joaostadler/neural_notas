@@ -57,6 +57,24 @@
         </div>
     </div>
 
+    <!-- Abas de quadros -->
+    {% if not readonly %}
+    <div class="kb-quadros-bar" id="kbQuadrosBar">
+        {% for q in quadros %}
+        <a class="kb-quadro-tab {% if quadro_ativo and q.id == quadro_ativo.id %}kb-quadro-tab--ativo{% endif %}"
+           href="{{ url_for('kanban.kanban', quadro=q.id) }}"
+           data-id="{{ q.id }}">
+            {{ q.nome }}
+            <button class="kb-quadro-rename" title="Renomear" onclick="event.preventDefault();renomearQuadro({{ q.id }}, '{{ q.nome|e }}')">✎</button>
+            {% if quadros|length > 1 %}
+            <button class="kb-quadro-del" title="Excluir quadro" onclick="event.preventDefault();excluirQuadro({{ q.id }}, '{{ q.nome|e }}')">✕</button>
+            {% endif %}
+        </a>
+        {% endfor %}
+        <button class="kb-quadro-add" id="btnNovoQuadro" title="Novo quadro">+ Quadro</button>
+    </div>
+    {% endif %}
+
     <!-- Barra de filtro -->
     <div class="kb-filter-bar">
         <span class="kb-filter-label">Período:</span>
@@ -79,10 +97,12 @@
     </div>
 
     <!-- Board -->
-    <div class="kb-board" id="kanbanBoard" data-ultima-col="{{ ultima_coluna_id or '' }}">
+    <div class="kb-board" id="kanbanBoard"
+         data-ultima-col="{{ ultima_coluna_id or '' }}"
+         data-quadro-id="{{ quadro_ativo.id if quadro_ativo else '' }}">
 
         {% for col in colunas %}
-        <div class="kb-col" data-col-id="{{ col.id }}">
+        <div class="kb-col {% if col.id == ultima_coluna_id %}kb-col--concluida{% endif %}" data-col-id="{{ col.id }}">
 
             <!-- Cabeçalho da coluna -->
             <div class="kb-col-header">
@@ -115,6 +135,7 @@
                      data-criado="{{ cartao.criado_em.strftime('%Y-%m-%d') }}"
                      data-obs-conclusao="{{ (cartao.observacoes_conclusao or '')|e }}"
                      data-data-conclusao="{{ cartao.data_conclusao.isoformat() if cartao.data_conclusao else (conclusoes[cartao.id].strftime('%Y-%m-%d') if conclusoes.get(cartao.id) else '') }}"
+                     data-entrada="{{ entradas[cartao.id].strftime('%Y-%m-%d') if entradas.get(cartao.id) else '' }}"
                      {% if not readonly %}ondragstart="onDragStart(event)" ondragend="onDragEnd(event)"{% endif %}>
 
                     <div class="kb-card-prio-bar prio-{{ cartao.prioridade }}"></div>
@@ -135,7 +156,10 @@
                             </span>
                         </div>
                         <div class="kb-card-dates">
-                            <span class="kb-date-item">📅 Criado: {{ cartao.criado_em.strftime('%d/%m/%Y') }}</span>
+                            <span class="kb-date-item kb-date-criado">📅 Criado: {{ cartao.criado_em.strftime('%d/%m/%Y') }}</span>
+                            {% if entradas.get(cartao.id) %}
+                            <span class="kb-date-item kb-date-etapa">⏱ Nesta etapa: {{ entradas[cartao.id].strftime('%d/%m/%Y') }}</span>
+                            {% endif %}
                             {% if col.id == ultima_coluna_id %}
                             <label class="kb-date-item kb-date-conclusao" onclick="event.stopPropagation()">
                                 ✓ Concluído:
@@ -295,6 +319,10 @@
                 <button class="kb-prio-btn" data-prio="media">● Média</button>
                 <button class="kb-prio-btn prio-sel-alta" data-prio="alta">● Alta</button>
             </div>
+        </div>
+        <div id="modalCartaoObsWrap" class="form-group" style="display:none">
+            <label>Registro de conclusão</label>
+            <div id="modalCartaoObsTexto" class="kb-obs-conclusao-modal"></div>
         </div>
         <div class="kb-modal-actions">
             <button class="btn btn-secondary btn-sm" onclick="fecharModalCartao()">Cancelar</button>
@@ -1100,6 +1128,56 @@
     border-top: 1px solid #e2e8f0; margin-top: 12px;
     padding-top: 12px; flex-shrink: 0;
 }
+
+/* ── Barra de quadros (múltiplos boards) ───────────────────────────── */
+.kb-quadros-bar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 24px; background: #fff;
+    border-bottom: 1px solid #dbe4ef; flex-shrink: 0;
+    overflow-x: auto; min-height: 38px;
+}
+.kb-quadros-bar::-webkit-scrollbar { height: 3px; }
+.kb-quadros-bar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 2px; }
+.kb-quadro-tab {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; font-size: 13px; font-weight: 500;
+    color: #64748b; text-decoration: none; border-bottom: 2px solid transparent;
+    white-space: nowrap; transition: color .12s, border-color .12s;
+    position: relative; top: 1px;
+}
+.kb-quadro-tab:hover { color: #1e293b; }
+.kb-quadro-tab--ativo { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+.kb-quadro-rename, .kb-quadro-del {
+    background: none; border: none; padding: 1px 3px; font-size: 11px;
+    cursor: pointer; border-radius: 3px; color: #cbd5e1;
+    transition: color .1s, background .1s; line-height: 1;
+}
+.kb-quadro-rename:hover { color: #64748b; background: #f1f5f9; }
+.kb-quadro-del:hover { color: #ef4444; background: #fee2e2; }
+.kb-quadro-add {
+    margin-left: 4px; padding: 4px 10px; background: transparent;
+    border: 1px dashed #cbd5e1; border-radius: 6px; font: inherit;
+    font-size: 12px; color: #94a3b8; cursor: pointer; white-space: nowrap;
+    transition: all .12s;
+}
+.kb-quadro-add:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+
+/* ── Cards compactos na coluna Concluído ───────────────────────────── */
+.kb-col--concluida .kb-card-prio-bar { display: none; }
+.kb-col--concluida .kb-card-footer { display: none; }
+.kb-col--concluida .kb-date-criado { display: none; }
+.kb-col--concluida .kb-date-etapa  { display: none; }
+.kb-col--concluida .kb-card-body { padding: 8px 10px 6px; }
+
+/* ── Data de entrada na etapa ──────────────────────────────────────── */
+.kb-date-etapa { color: #7c3aed; }
+
+/* ── Obs conclusão no modal de edição ──────────────────────────────── */
+.kb-obs-conclusao-modal {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+    padding: 8px 12px; font-size: 13px; color: #15803d; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-word;
+}
 </style>
 
 
@@ -1350,6 +1428,37 @@ COR_PRESETS.forEach(cor => {
     document.addEventListener('click', () => { menu.hidden = true; });
 })();
 
+/* ── Quadros (múltiplos boards) ─────────────────────────────────── */
+document.getElementById('btnNovoQuadro') && document.getElementById('btnNovoQuadro').addEventListener('click', async () => {
+    const nome = prompt('Nome do novo quadro:');
+    if (!nome || !nome.trim()) return;
+    const res = await apiFetch('/kanban/quadros', 'POST', {nome: nome.trim()});
+    if (res.id) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('quadro', res.id);
+        window.location.href = url.toString();
+    }
+});
+
+window.renomearQuadro = async function(id, nomeAtual) {
+    const novoNome = prompt('Novo nome do quadro:', nomeAtual);
+    if (!novoNome || !novoNome.trim() || novoNome.trim() === nomeAtual) return;
+    const res = await apiFetch(`/kanban/quadros/${id}`, 'PUT', {nome: novoNome.trim()});
+    if (res.ok) {
+        document.querySelector(`.kb-quadro-tab[data-id="${id}"]`).childNodes[0].textContent = novoNome.trim() + ' ';
+    }
+};
+
+window.excluirQuadro = async function(id, nome) {
+    if (!confirm(`Excluir o quadro "${nome}" e todas as suas colunas e cartões?`)) return;
+    const res = await apiFetch(`/kanban/quadros/${id}`, 'DELETE');
+    if (res.ok) {
+        window.location.href = '{{ url_for("kanban.kanban") }}';
+    } else if (res.erro) {
+        alert(res.erro);
+    }
+};
+
 document.getElementById('btnNovaColuna') && document.getElementById('btnNovaColuna').addEventListener('click', () => {
     editandoColunaId = null;
     document.getElementById('modalColunaEyebrow').textContent = 'Nova coluna';
@@ -1395,7 +1504,8 @@ window.salvarColuna = async function() {
             }
         }
     } else {
-        const res = await API.criarColuna({nome, cor});
+        const quadroId = parseInt(document.getElementById('kanbanBoard').dataset.quadroId || '0') || undefined;
+        const res = await API.criarColuna({nome, cor, quadro_id: quadroId});
         if (res.id) injetarColuna(res);
     }
 
@@ -1482,6 +1592,19 @@ window.abrirEditarCartao = function(cardEl) {
     document.getElementById('inputCartaoDescricao').innerHTML  = cardEl.dataset.descricao || '';
     document.getElementById('inputCartaoEtiquetas').value      = cardEl.dataset.etiquetas;
     setPrioAtiva(cardEl.dataset.prioridade || 'baixa');
+
+    /* Feature 3: Registro de conclusão apenas na etapa Concluído */
+    const ultimaColId = parseInt(document.getElementById('kanbanBoard').dataset.ultimaCol || '0');
+    const obsWrap = document.getElementById('modalCartaoObsWrap');
+    const obsTxt  = document.getElementById('modalCartaoObsTexto');
+    const obs = (cardEl.dataset.obsConclusao || '').trim();
+    if (obs && parseInt(cardEl.dataset.col) === ultimaColId) {
+        obsTxt.textContent = obs;
+        obsWrap.style.display = 'block';
+    } else {
+        obsWrap.style.display = 'none';
+    }
+
     abrirModalCartao();
 };
 
