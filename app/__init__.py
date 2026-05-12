@@ -131,18 +131,28 @@ def criar_app(config=None):
                 u.papel = 'admin'
                 db.session.commit()
 
-    # Context processor: expõe usuario_visualizado para todos os templates
+    # Context processor: expõe admin_visualizando e modulos_permitidos a todos os templates
     @app.context_processor
     def _inject_admin_context():
         from flask_login import current_user
         from flask import session as _session
-        if current_user.is_authenticated and current_user.papel == 'admin':
+        ctx = {'admin_visualizando': None, 'modulos_permitidos': None}
+
+        if not current_user.is_authenticated:
+            return ctx
+
+        if current_user.papel == 'admin':
             vid = _session.get('admin_visualizando_id')
             if vid and vid != current_user.id:
                 u = Usuario.query.get(vid)
                 if u:
-                    return {'admin_visualizando': u}
-        return {'admin_visualizando': None}
+                    ctx['admin_visualizando'] = u
+        else:
+            from app.utils import get_permissoes, MODULOS
+            p = get_permissoes(current_user.id)
+            ctx['modulos_permitidos'] = {m: getattr(p, m) for m in MODULOS}
+
+        return ctx
 
     # Registrar blueprints
     from app.routes.auth import bp_auth

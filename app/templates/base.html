@@ -31,6 +31,12 @@
         }
         .navbar-role-admin { background: #b45309; color: #fff; }
         .navbar-role-user  { background: rgba(255,255,255,.12); color: rgba(255,255,255,.6); }
+        .navbar-bloqueado {
+            text-decoration: line-through;
+            opacity: .35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -48,12 +54,33 @@
         <div class="navbar-brand">
             <a href="{{ url_for('main.dashboard') }}" class="brand-logo">🧠 NeuralNotes</a>
         </div>
+        {% set mp = modulos_permitidos %}
         <div class="navbar-menu">
-            <a href="{{ url_for('main.dashboard') }}" class="navbar-item navbar-link">Biblioteca</a>
-            <a href="{{ url_for('kanban.kanban') }}" class="navbar-item navbar-link">Kanban</a>
-            <a href="{{ url_for('tarefas.tarefas') }}" class="navbar-item navbar-link">Tarefas</a>
-            <a href="{{ url_for('reunioes.reunioes') }}" class="navbar-item navbar-link">Reuniões</a>
-            <a href="{{ url_for('roadmap.lista') }}" class="navbar-item navbar-link">Roadmap</a>
+            {% if mp is none or mp.biblioteca %}
+                <a href="{{ url_for('main.dashboard') }}" class="navbar-item navbar-link">Biblioteca</a>
+            {% else %}
+                <span class="navbar-item navbar-link navbar-bloqueado" title="Sem acesso">Biblioteca</span>
+            {% endif %}
+            {% if mp is none or mp.kanban %}
+                <a href="{{ url_for('kanban.kanban') }}" class="navbar-item navbar-link">Kanban</a>
+            {% else %}
+                <span class="navbar-item navbar-link navbar-bloqueado" title="Sem acesso">Kanban</span>
+            {% endif %}
+            {% if mp is none or mp.tarefas %}
+                <a href="{{ url_for('tarefas.tarefas') }}" class="navbar-item navbar-link">Tarefas</a>
+            {% else %}
+                <span class="navbar-item navbar-link navbar-bloqueado" title="Sem acesso">Tarefas</span>
+            {% endif %}
+            {% if mp is none or mp.reunioes %}
+                <a href="{{ url_for('reunioes.reunioes') }}" class="navbar-item navbar-link">Reuniões</a>
+            {% else %}
+                <span class="navbar-item navbar-link navbar-bloqueado" title="Sem acesso">Reuniões</span>
+            {% endif %}
+            {% if mp is none or mp.roadmap %}
+                <a href="{{ url_for('roadmap.lista') }}" class="navbar-item navbar-link">Roadmap</a>
+            {% else %}
+                <span class="navbar-item navbar-link navbar-bloqueado" title="Sem acesso">Roadmap</span>
+            {% endif %}
             {% if current_user.papel == 'admin' %}
             <a href="{{ url_for('usuario.admin_usuarios') }}" class="navbar-item navbar-link">Usuários</a>
             {% endif %}

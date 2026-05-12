@@ -41,8 +41,10 @@ def get_permissoes(usuario_id):
 def verificar_acesso_modulo(modulo):
     """Verifica se current_user tem acesso ao módulo.
 
-    Retorna None se permitido, ou Response de redirect se bloqueado.
-    Admins sempre têm acesso. Endpoints livres (dashboard, index) ignoram o check de biblioteca.
+    Retorna None se permitido, ou Response apropriada se bloqueado.
+    - Navegação de página (Sec-Fetch-Mode: navigate): redireciona ao dashboard com flash.
+    - Requisição AJAX/fetch: retorna 403 JSON sem redirecionar (evita loop e flash duplicado).
+    Admins sempre têm acesso total.
     """
     if not current_user.is_authenticated:
         return None
@@ -52,8 +54,12 @@ def verificar_acesso_modulo(modulo):
         return None
     perms = get_permissoes(current_user.id)
     if not getattr(perms, modulo, True):
-        flash('Você não tem acesso a esta área.', 'erro')
-        return redirect(url_for('main.dashboard'))
+        # Sec-Fetch-Mode: navigate → navegação real de página; qualquer outra coisa → AJAX/fetch
+        if request.headers.get('Sec-Fetch-Mode', 'navigate') == 'navigate':
+            flash('Você não tem acesso a esta área.', 'erro')
+            return redirect(url_for('main.dashboard'))
+        from flask import jsonify, make_response
+        return make_response(jsonify({'erro': 'Sem acesso a esta área'}), 403)
     return None
 
 
