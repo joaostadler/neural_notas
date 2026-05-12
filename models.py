@@ -509,3 +509,26 @@ class ProjetoRoadmap(db.Model):
 
     def __repr__(self):
         return f'<ProjetoRoadmap {self.nome}>'
+
+
+class Reuniao(db.Model):
+    """Reunião/agenda diária."""
+    __tablename__ = 'reunioes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    nome = db.Column(db.String(255), nullable=False)
+    equipe = db.Column(db.String(255), default='')
+    data_reuniao = db.Column(db.Date, nullable=False)
+    hora_inicio = db.Column(db.String(5), default='')   # "HH:MM"
+    hora_fim = db.Column(db.String(5), default='')
+    participantes = db.Column(db.Text, default='')       # nomes separados por vírgula
+    anotacoes = db.Column(db.Text, default='')
+    imagens_json = db.Column(db.Text, default='[]')      # JSON array de caminhos relativos
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    usuario = db.relationship('Usuario', backref=db.backref('reunioes', lazy=True))
+
+    def __repr__(self):
+        return f'<Reuniao {self.nome}>'

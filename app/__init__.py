@@ -121,6 +121,7 @@ def criar_app(config=None):
     from app.routes.tarefas import bp_tarefas
     from app.routes.usuario import bp_usuario
     from app.routes.roadmap import bp_roadmap
+    from app.routes.reunioes import bp_reunioes
 
     app.register_blueprint(bp_auth)
     app.register_blueprint(bp_main)
@@ -128,5 +129,6 @@ def criar_app(config=None):
     app.register_blueprint(bp_tarefas)
     app.register_blueprint(bp_usuario)
     app.register_blueprint(bp_roadmap)
+    app.register_blueprint(bp_reunioes)
 
     return app
