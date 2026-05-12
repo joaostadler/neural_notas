@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from models import (
     Apresentacao, Caderno, CartaoKanban, CelulaJupyter, ColunaKanban,
     Codigo, ComentarioSlide, Diagrama, HistoricoEtapas, IconeCustomizado,
-    Imagem, Nota, PDF, Planilha, ProjetoRoadmap, Roadmap, TarefaFacil, Topico, db,
+    Imagem, Nota, PDF, Planilha, ProjetoRoadmap, Reuniao, Roadmap, TarefaFacil, Topico, db,
 )
 
 bp_main = Blueprint('main', __name__)
@@ -704,10 +704,11 @@ _TMPL_CONTEUDO = {
     'planilha': 'content/_planilha.html',
     'jupyter':  'content/_jupyter.html',
     'diagrama': 'content/_diagrama.html',
-    'python':     'content/_python.html',
-    'sql':        'content/_sql.html',
+    'python':       'content/_python.html',
+    'sql':          'content/_sql.html',
     'biblioteca':   'content/_biblioteca.html',
     'apresentacao': 'content/_apresentacao.html',
+    'pasta':        'content/_pasta.html',
 }
 
 
@@ -742,6 +743,13 @@ def ver_topico(id):
         conteudo = (
             Topico.query
             .filter_by(id_usuario=current_user.id, id_pai=topico.id, tipo='pdf')
+            .order_by(Topico.ordem, Topico.nome)
+            .all()
+        )
+    elif topico.tipo == 'pasta':
+        conteudo = (
+            Topico.query
+            .filter_by(id_usuario=current_user.id, id_pai=topico.id)
             .order_by(Topico.ordem, Topico.nome)
             .all()
         )
@@ -913,6 +921,49 @@ def salvar_topico(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'erro': str(e)}), 500
+
+
+@bp_main.route('/topico/<int:id>/reunioes', methods=['GET'])
+@login_required
+def listar_reunioes_nota(id):
+    topico = _topico_do_usuario(id)
+    if not topico or not topico.notas:
+        return jsonify([])
+    return jsonify([{
+        'id': r.id,
+        'nome': r.nome,
+        'data': r.data_reuniao.isoformat(),
+        'hora_inicio': r.hora_inicio,
+    } for r in topico.notas.reunioes_vinculadas])
+
+
+@bp_main.route('/topico/<int:id>/reunioes', methods=['POST'])
+@login_required
+def vincular_reuniao(id):
+    topico = _topico_do_usuario(id)
+    if not topico or not topico.notas:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    dados = request.get_json(silent=True) or {}
+    reuniao = Reuniao.query.filter_by(id=dados.get('reuniao_id'), id_usuario=current_user.id).first()
+    if not reuniao:
+        return jsonify({'erro': 'Reunião não encontrada'}), 404
+    if reuniao not in topico.notas.reunioes_vinculadas:
+        topico.notas.reunioes_vinculadas.append(reuniao)
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
+@bp_main.route('/topico/<int:id>/reunioes/<int:reuniao_id>', methods=['DELETE'])
+@login_required
+def desvincular_reuniao(id, reuniao_id):
+    topico = _topico_do_usuario(id)
+    if not topico or not topico.notas:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    reuniao = next((r for r in topico.notas.reunioes_vinculadas if r.id == reuniao_id), None)
+    if reuniao:
+        topico.notas.reunioes_vinculadas.remove(reuniao)
+        db.session.commit()
+    return jsonify({'ok': True})
 
 
 _TIPOS_ICONE_VALIDOS = frozenset((

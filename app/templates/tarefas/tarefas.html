@@ -385,7 +385,16 @@
     </div>
     <div class="form-group">
       <label>Solicitante</label>
-      <input type="text" id="inputSolicitante" placeholder="Nome de quem pediu (opcional)">
+      <input type="text" id="inputSolicitante" list="solicitantesList" placeholder="Nome de quem pediu (opcional)" autocomplete="off">
+      <datalist id="solicitantesList">
+        {% set solicitantes_vistos = namespace(nomes=[]) %}
+        {% for t in tarefas %}
+          {% if t.solicitante and t.solicitante not in solicitantes_vistos.nomes %}
+            <option value="{{ t.solicitante }}">
+            {% set solicitantes_vistos.nomes = solicitantes_vistos.nomes + [t.solicitante] %}
+          {% endif %}
+        {% endfor %}
+      </datalist>
     </div>
     <div class="form-group">
       <label>Descrição <span style="color:var(--rosa)">*</span></label>

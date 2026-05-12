@@ -78,6 +78,13 @@ class Topico(db.Model):
         return f'<Topico {self.nome}>'
 
 
+nota_reuniao = db.Table(
+    'nota_reuniao',
+    db.Column('nota_id', db.Integer, db.ForeignKey('notas.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('reuniao_id', db.Integer, db.ForeignKey('reunioes.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
 class Nota(db.Model):
     """Modelo de notas de texto."""
     __tablename__ = 'notas'
@@ -90,6 +97,7 @@ class Nota(db.Model):
 
     # Relacionamentos
     etiquetas = db.relationship('Etiqueta', backref='nota', lazy=True, cascade='all, delete-orphan')
+    reunioes_vinculadas = db.relationship('Reuniao', secondary=nota_reuniao, backref=db.backref('notas_vinculadas', lazy=True), lazy=True)
 
     def __repr__(self):
         return f'<Nota {self.titulo}>'

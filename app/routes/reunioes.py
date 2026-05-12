@@ -57,6 +57,22 @@ def _serializar(r: Reuniao) -> dict:
     }
 
 
+@bp_reunioes.route('/lista')
+@login_required
+def lista_reunioes():
+    q = request.args.get('q', '').strip()
+    query = Reuniao.query.filter_by(id_usuario=current_user.id)
+    if q:
+        query = query.filter(Reuniao.nome.ilike(f'%{q}%'))
+    reunioes = query.order_by(Reuniao.data_reuniao.desc()).limit(20).all()
+    return jsonify([{
+        'id': r.id,
+        'nome': r.nome,
+        'data': r.data_reuniao.isoformat(),
+        'hora_inicio': r.hora_inicio,
+    } for r in reunioes])
+
+
 @bp_reunioes.route('')
 @login_required
 def reunioes():
